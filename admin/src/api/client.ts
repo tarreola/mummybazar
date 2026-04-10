@@ -29,7 +29,7 @@ export const login = (email: string, password: string) =>
   api.post<{ access_token: string }>('/auth/login', { email, password })
 
 // ── Dashboard ─────────────────────────────────────────────────────────────────
-export type DashboardPeriod = 'WTD' | 'MTD' | 'QTD' | 'YTD' | 'CUSTOM'
+export type DashboardPeriod = 'TODAY' | 'WTD' | 'MTD' | 'QTD' | 'YTD' | 'CUSTOM'
 
 export const getDashboardSummary = (params?: {
   period?: DashboardPeriod
@@ -54,12 +54,14 @@ export const getSellers = () => api.get('/sellers/')
 export const getSeller = (id: number) => api.get(`/sellers/${id}`)
 export const createSeller = (data: object) => api.post('/sellers/', data)
 export const updateSeller = (id: number, data: object) => api.patch(`/sellers/${id}`, data)
+export const approveSeller = (id: number) => api.post(`/sellers/${id}/approve`)
 
 // ── Buyers ────────────────────────────────────────────────────────────────────
 export const getBuyers = () => api.get('/buyers/')
 export const getBuyer = (id: number) => api.get(`/buyers/${id}`)
 export const createBuyer = (data: object) => api.post('/buyers/', data)
 export const updateBuyer = (id: number, data: object) => api.patch(`/buyers/${id}`, data)
+export const approveBuyer = (id: number) => api.post(`/buyers/${id}/approve`)
 
 // ── Items ─────────────────────────────────────────────────────────────────────
 export const getItems = (params?: object) => api.get('/items/', { params })

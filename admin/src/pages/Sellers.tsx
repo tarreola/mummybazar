@@ -1,30 +1,59 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   Table, Button, Modal, Form, Input, Space, Typography, Tag, Tooltip,
-  message, Drawer, Descriptions, Rate, Statistic, Row, Col, Card,
+  message, Drawer, Descriptions, Rate, Statistic, Row, Col, Card, Badge, Popconfirm, Divider, List,
 } from 'antd'
-import { PlusOutlined, EditOutlined, WhatsAppOutlined, BarChartOutlined } from '@ant-design/icons'
-import type { ColumnsType } from 'antd/es/table'
+import { PlusOutlined, EditOutlined, WhatsAppOutlined, BarChartOutlined, CheckCircleOutlined, SearchOutlined, DollarOutlined, OrderedListOutlined, ClockCircleOutlined } from '@ant-design/icons'
+import { useNavigate } from 'react-router-dom'
 import dayjs from 'dayjs'
-import { getSellers, createSeller, updateSeller } from '../api/client'
+import type { ColumnsType } from 'antd/es/table'
+import { getSellers, createSeller, updateSeller, approveSeller, getOrders } from '../api/client'
 import api from '../api/client'
-import type { Seller } from '../types'
+import type { Seller, Order } from '../types'
 
 const { Title, Text } = Typography
 
+const ORDER_STATUS_LABEL: Record<string, string> = {
+  pending_payment: 'Pago pendiente', paid: 'Compra realizada', preparing: 'Preparando',
+  shipped: 'Enviado', delivered: 'Confirmado', closed: 'Cerrado',
+  cancelled: 'Cancelado', refunded: 'Reembolsado',
+}
+const ORDER_STATUS_COLOR: Record<string, string> = {
+  pending_payment: 'orange', paid: 'blue', preparing: 'cyan', shipped: 'purple',
+  delivered: 'green', closed: 'default', cancelled: 'red', refunded: 'default',
+}
+
 export default function Sellers() {
   const qc = useQueryClient()
+  const navigate = useNavigate()
   const [modalOpen, setModalOpen] = useState(false)
   const [editSeller, setEditSeller] = useState<Seller | null>(null)
   const [statsSeller, setStatsSeller] = useState<Seller | null>(null)
   const [stats, setStats] = useState<any>(null)
+  const [search, setSearch] = useState('')
   const [form] = Form.useForm()
 
   const { data: sellers = [], isLoading } = useQuery<Seller[]>({
     queryKey: ['sellers'],
     queryFn: () => getSellers().then(r => r.data),
   })
+
+  const { data: sellerOrders = [] } = useQuery<Order[]>({
+    queryKey: ['orders', 'seller', statsSeller?.id],
+    queryFn: () => getOrders({ seller_id: statsSeller!.id }).then(r => r.data),
+    enabled: !!statsSeller,
+  })
+
+  const filteredSellers = useMemo(() => {
+    if (!search.trim()) return sellers
+    const q = search.toLowerCase()
+    return sellers.filter(s =>
+      s.full_name.toLowerCase().includes(q) ||
+      s.phone.includes(q) ||
+      (s.email || '').toLowerCase().includes(q)
+    )
+  }, [sellers, search])
 
   const createMutation = useMutation({
     mutationFn: (data: object) => createSeller(data),
@@ -47,13 +76,31 @@ export default function Sellers() {
     setStats(res.data)
   }
 
+  const approveMutation = useMutation({
+    mutationFn: (id: number) => approveSeller(id),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['sellers'] }); message.success('Vendedora aprobada') },
+    onError: () => message.error('Error al aprobar'),
+  })
+
   const onSave = (values: object) => {
     if (editSeller) updateMutation.mutate({ id: editSeller.id, data: values })
     else createMutation.mutate(values)
   }
 
   const columns: ColumnsType<Seller> = [
-    { title: 'Nombre', dataIndex: 'full_name', render: (v, r) => <a onClick={() => openStats(r)}>{v}</a> },
+    {
+      title: 'Nombre', dataIndex: 'full_name',
+      render: (v, r) => (
+        <Space size={4}>
+          <a onClick={() => openStats(r)}>{v}</a>
+          {(r as any).has_pending_payout && (
+            <Tooltip title="Tiene pagos pendientes">
+              <DollarOutlined style={{ color: '#f5222d' }} />
+            </Tooltip>
+          )}
+        </Space>
+      ),
+    },
     {
       title: 'WhatsApp', dataIndex: 'phone',
       render: v => (
@@ -73,6 +120,27 @@ export default function Sellers() {
           onChange={rating => updateMutation.mutate({ id: r.id, data: { rating } })}
         />
       ),
+    },
+    {
+      title: 'Publicados', width: 90,
+      render: (_, r) => {
+        const count = (r as any).total_listed ?? '—'
+        return <Tag color={count > 0 ? 'green' : 'default'}>{count}</Tag>
+      },
+    },
+    {
+      title: 'Aprobada', dataIndex: 'is_approved', width: 100,
+      render: (v, r) => v
+        ? <Tag color="green" icon={<CheckCircleOutlined />}>Sí</Tag>
+        : (
+          <Popconfirm
+            title="¿Aprobar a esta vendedora?"
+            onConfirm={() => approveMutation.mutate(r.id)}
+            okText="Aprobar" cancelText="No"
+          >
+            <Tag color="orange" style={{ cursor: 'pointer' }}>Pendiente ✓</Tag>
+          </Popconfirm>
+        ),
     },
     {
       title: 'Estado', dataIndex: 'is_active', width: 80,
@@ -95,15 +163,25 @@ export default function Sellers() {
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
         <Title level={4} style={{ color: '#c41d7f', margin: 0 }}>Vendedoras</Title>
-        <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}
-          style={{ background: '#c41d7f', borderColor: '#c41d7f' }}>
-          Nueva vendedora
-        </Button>
+        <Space>
+          <Input
+            placeholder="Buscar vendedora…"
+            prefix={<SearchOutlined style={{ color: '#c41d7f' }} />}
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            allowClear
+            style={{ width: 220 }}
+          />
+          <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}
+            style={{ background: '#c41d7f', borderColor: '#c41d7f' }}>
+            Nueva vendedora
+          </Button>
+        </Space>
       </div>
 
-      <Table dataSource={sellers} columns={columns} rowKey="id" loading={isLoading}
+      <Table dataSource={filteredSellers} columns={columns} rowKey="id" loading={isLoading}
         size="small" pagination={{ pageSize: 20 }} />
 
       {/* Seller stats drawer */}
@@ -131,7 +209,7 @@ export default function Sellers() {
             </Descriptions>
 
             {stats && (
-              <Row gutter={[8, 8]}>
+              <Row gutter={[8, 8]} style={{ marginBottom: 16 }}>
                 {[
                   { title: 'Artículos totales', value: stats.total_items },
                   { title: 'Publicados', value: stats.listed, valueStyle: { color: '#52c41a' } },
@@ -147,6 +225,91 @@ export default function Sellers() {
                 ))}
               </Row>
             )}
+
+            {/* ── Pedidos activos y pagos pendientes ── */}
+            {sellerOrders.length > 0 && (() => {
+              const activeOrders = sellerOrders.filter(o =>
+                ['pending_payment', 'paid', 'preparing', 'shipped'].includes(o.status)
+              )
+              const pendingPayout = sellerOrders.filter(o =>
+                o.status === 'shipped' && !o.seller_paid
+              )
+              const pendingPayoutTotal = pendingPayout.reduce((s, o) => s + Number(o.seller_payout_amount), 0)
+
+              return (
+                <>
+                  {pendingPayout.length > 0 && (
+                    <>
+                      <Divider style={{ margin: '12px 0 8px' }}>
+                        <Tag color="orange" icon={<DollarOutlined />}>
+                          Pagos pendientes — ${pendingPayoutTotal.toLocaleString('es-MX')} MXN
+                        </Tag>
+                      </Divider>
+                      <List
+                        size="small"
+                        dataSource={pendingPayout}
+                        renderItem={(o) => (
+                          <List.Item
+                            style={{ padding: '6px 0' }}
+                            extra={
+                              <Button size="small" type="link"
+                                onClick={() => { setStatsSeller(null); setStats(null); navigate('/orders') }}>
+                                Ver orden
+                              </Button>
+                            }
+                          >
+                            <div>
+                              <Text style={{ fontFamily: 'monospace', fontSize: 12, color: '#c41d7f' }}>
+                                {o.order_number}
+                              </Text>
+                              <div style={{ fontSize: 11, color: 'var(--muted)' }}>
+                                {o.item_title} · <strong>${Number(o.seller_payout_amount).toLocaleString('es-MX')}</strong>
+                              </div>
+                            </div>
+                          </List.Item>
+                        )}
+                      />
+                    </>
+                  )}
+
+                  {activeOrders.length > 0 && (
+                    <>
+                      <Divider style={{ margin: '12px 0 8px' }}>
+                        <Tag color="blue" icon={<ClockCircleOutlined />}>
+                          Pedidos en curso ({activeOrders.length})
+                        </Tag>
+                      </Divider>
+                      <List
+                        size="small"
+                        dataSource={activeOrders}
+                        renderItem={(o) => (
+                          <List.Item style={{ padding: '6px 0' }}>
+                            <div style={{ flex: 1 }}>
+                              <Space size={6}>
+                                <Text style={{ fontFamily: 'monospace', fontSize: 11, color: '#c41d7f' }}>{o.order_number}</Text>
+                                <Tag color={ORDER_STATUS_COLOR[o.status]} style={{ fontSize: 10, margin: 0 }}>
+                                  {ORDER_STATUS_LABEL[o.status]}
+                                </Tag>
+                              </Space>
+                              <div style={{ fontSize: 11, color: 'var(--muted)' }}>
+                                {o.item_title} · {dayjs(o.created_at).format('DD/MM/YY')}
+                              </div>
+                            </div>
+                          </List.Item>
+                        )}
+                      />
+                    </>
+                  )}
+
+                  <div style={{ marginTop: 10, textAlign: 'right' }}>
+                    <Button size="small" icon={<OrderedListOutlined />}
+                      onClick={() => { setStatsSeller(null); setStats(null); navigate('/orders') }}>
+                      Ver todos los pedidos
+                    </Button>
+                  </div>
+                </>
+              )
+            })()}
           </>
         )}
       </Drawer>

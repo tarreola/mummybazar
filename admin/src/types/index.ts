@@ -17,7 +17,7 @@ export type ItemCondition = 'like_new' | 'good' | 'fair'
 
 export type OrderStatus =
   | 'pending_payment' | 'paid' | 'preparing'
-  | 'shipped' | 'delivered' | 'cancelled' | 'refunded'
+  | 'shipped' | 'delivered' | 'closed' | 'cancelled' | 'refunded'
 
 export type ShippingMethod = 'pickup' | 'delivery_cdmx' | 'parcel'
 

@@ -1,14 +1,14 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   Table, Button, Modal, Form, Input, Select, Space, Typography,
   Tag, Card, Row, Col, message, Divider, Alert, Tabs,
-  Collapse, Tooltip,
+  Collapse, Tooltip, Badge,
 } from 'antd'
 import {
   SendOutlined, WhatsAppOutlined, NotificationOutlined,
   WarningOutlined, TeamOutlined, UserOutlined, MessageOutlined,
-  EyeOutlined, ShoppingOutlined, CopyOutlined,
+  EyeOutlined, ShoppingOutlined, CopyOutlined, SearchOutlined,
 } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import dayjs from 'dayjs'
@@ -140,7 +140,8 @@ export default function WhatsAppHub() {
   const [promoItems, setPromoItems] = useState<any[]>([])
   const [form] = Form.useForm()
   const [campaignForm] = Form.useForm()
-  const [campaignType, setCampaignType] = useState<'promo' | 'general'>('general')
+  const [campaignType, setCampaignType] = useState<'promo' | 'general' | 'stagnant'>('general')
+  const [contactSearch, setContactSearch] = useState('')
 
   // ── Queries ──────────────────────────────────────────────────────────────────
   const { data: messages = [], isLoading } = useQuery<WhatsAppMessage[]>({
@@ -218,6 +219,12 @@ export default function WhatsAppHub() {
   }
 
   const onCampaign = (values: any) => {
+    if (campaignType === 'stagnant') {
+      stagnantMutation.mutate()
+      setCampaignOpen(false)
+      campaignForm.resetFields()
+      return
+    }
     campaignMutation.mutate({
       audience: values.audience,
       body: values.body || '',
@@ -226,6 +233,17 @@ export default function WhatsAppHub() {
       audience_ids: undefined,
     })
   }
+
+  // Filtered contacts
+  const filteredContacts = useMemo(() => {
+    if (!contactSearch.trim()) return buyers
+    const q = contactSearch.toLowerCase()
+    return buyers.filter(b =>
+      b.full_name?.toLowerCase().includes(q) ||
+      b.phone?.includes(q) ||
+      b.email?.toLowerCase().includes(q)
+    )
+  }, [buyers, contactSearch])
 
   // Stats
   const outbound = messages.filter(m => m.direction === 'outbound').length
@@ -275,11 +293,6 @@ export default function WhatsAppHub() {
           <WhatsAppOutlined style={{ color: '#25d366', marginRight: 8 }} />WhatsApp Hub
         </Title>
         <Space wrap>
-          <Button icon={<WarningOutlined />} loading={stagnantMutation.isPending}
-            onClick={() => stagnantMutation.mutate()}
-            style={{ borderColor: '#faad14', color: '#faad14' }}>
-            Recordar inventario detenido
-          </Button>
           <Button icon={<NotificationOutlined />} onClick={() => setCampaignOpen(true)}
             style={{ borderColor: '#722ed1', color: '#722ed1' }}>
             Campaña masiva
@@ -335,6 +348,68 @@ export default function WhatsAppHub() {
             children: (
               <Table dataSource={messages} columns={columns} rowKey="id" loading={isLoading}
                 size="small" pagination={{ pageSize: 30 }} />
+            ),
+          },
+          {
+            key: 'contacts',
+            label: <span><UserOutlined />Contactos <Badge count={buyers.length} color="#c41d7f" /></span>,
+            children: (
+              <div>
+                <div style={{ marginBottom: 12 }}>
+                  <Input
+                    placeholder="Buscar por nombre, teléfono o email…"
+                    prefix={<SearchOutlined style={{ color: '#c41d7f' }} />}
+                    value={contactSearch}
+                    onChange={e => setContactSearch(e.target.value)}
+                    allowClear
+                    style={{ width: 300 }}
+                  />
+                </div>
+                <Table
+                  dataSource={filteredContacts}
+                  rowKey="id"
+                  size="small"
+                  pagination={{ pageSize: 30 }}
+                  columns={[
+                    {
+                      title: 'Nombre', dataIndex: 'full_name',
+                      render: (v: string) => <Text strong style={{ fontSize: 13 }}>{v}</Text>,
+                    },
+                    {
+                      title: 'Teléfono', dataIndex: 'phone', width: 155,
+                      render: (v: string) => v ? (
+                        <a href={`https://wa.me/${v.replace('+', '')}`} target="_blank" rel="noreferrer">
+                          <WhatsAppOutlined style={{ color: '#25d366', marginRight: 4 }} />
+                          <Text style={{ fontSize: 12 }}>{v}</Text>
+                        </a>
+                      ) : '—',
+                    },
+                    {
+                      title: 'Email', dataIndex: 'email', width: 200,
+                      render: (v: string) => v ? <Text style={{ fontSize: 12 }}>{v}</Text> : '—',
+                    },
+                    {
+                      title: 'Órdenes', dataIndex: 'total_orders', width: 85, align: 'center' as const,
+                      render: (v: number) => v > 0 ? <Tag color="blue">{v}</Tag> : <Tag>0</Tag>,
+                    },
+                    {
+                      title: '', width: 80,
+                      render: (_: any, r: any) => (
+                        <Tooltip title="Enviar WhatsApp">
+                          <Button size="small" icon={<SendOutlined />}
+                            style={{ borderColor: '#25d366', color: '#25d366' }}
+                            onClick={() => {
+                              setRecipientType('buyer')
+                              form.setFieldsValue({ recipient_id: r.id })
+                              setComposeOpen(true)
+                            }}
+                          />
+                        </Tooltip>
+                      ),
+                    },
+                  ]}
+                />
+              </div>
             ),
           },
           {
@@ -462,36 +537,46 @@ export default function WhatsAppHub() {
         />
 
         <Form form={campaignForm} layout="vertical" onFinish={onCampaign}>
-          <Form.Item name="audience" label="Audiencia" rules={[{ required: true }]}>
-            <Select>
-              <Option value="all_sellers">
-                <TeamOutlined style={{ color: '#c41d7f', marginRight: 6 }} />
-                Todas las vendedoras ({sellers.length})
-              </Option>
-              <Option value="all_buyers">
-                <UserOutlined style={{ color: '#722ed1', marginRight: 6 }} />
-                Todas las compradoras ({buyers.length})
-              </Option>
-            </Select>
-          </Form.Item>
-
           <Form.Item label="Tipo de campaña">
-            <Select value={campaignType} onChange={v => setCampaignType(v as any)}>
+            <Select value={campaignType} onChange={v => { setCampaignType(v as any); campaignForm.resetFields(['audience', 'body', 'promo_items']) }}>
               <Option value="general">
                 <MessageOutlined style={{ marginRight: 6 }} />Mensaje general personalizado
               </Option>
               <Option value="promo">
                 <ShoppingOutlined style={{ color: '#c41d7f', marginRight: 6 }} />Promoción con artículos del inventario
               </Option>
+              <Option value="stagnant">
+                <WarningOutlined style={{ color: '#faad14', marginRight: 6 }} />Recordar artículos sin movimiento (+30 días)
+              </Option>
             </Select>
           </Form.Item>
 
-          {campaignType === 'promo' ? (
+          {campaignType !== 'stagnant' && (
+            <Form.Item name="audience" label="Audiencia" rules={[{ required: true }]}>
+              <Select>
+                <Option value="all_sellers">
+                  <TeamOutlined style={{ color: '#c41d7f', marginRight: 6 }} />
+                  Todas las vendedoras ({sellers.length})
+                </Option>
+                <Option value="all_buyers">
+                  <UserOutlined style={{ color: '#722ed1', marginRight: 6 }} />
+                  Todas las compradoras ({buyers.length})
+                </Option>
+              </Select>
+            </Form.Item>
+          )}
+
+          {campaignType === 'stagnant' && (
+            <Alert
+              message="Se enviará un recordatorio automático a todas las vendedoras con artículos sin movimiento hace más de 30 días."
+              type="warning" showIcon style={{ marginBottom: 12 }}
+            />
+          )}
+
+          {campaignType === 'promo' && (
             <Form.Item name="promo_items" label="Artículos en promoción" rules={[{ required: true, message: 'Selecciona al menos un artículo' }]}>
               <Select
-                mode="multiple"
-                showSearch
-                optionFilterProp="label"
+                mode="multiple" showSearch optionFilterProp="label"
                 placeholder="Busca y selecciona artículos publicados…"
                 options={(listedItems as any[]).map((i: any) => ({
                   value: i.id,
@@ -499,20 +584,22 @@ export default function WhatsAppHub() {
                 }))}
               />
             </Form.Item>
-          ) : (
+          )}
+
+          {campaignType === 'general' && (
             <Form.Item name="body" label="Mensaje" rules={[{ required: true }]}
               extra='Usa {nombre} para personalizar con el nombre de cada destinataria.'>
-              <TextArea rows={6}
-                placeholder={'Hola {nombre}! 🌸 Tenemos novedades para ti en MommyBazar...'} />
+              <TextArea rows={6} placeholder={'Hola {nombre}! 🌸 Tenemos novedades para ti en MommyBazar...'} />
             </Form.Item>
           )}
 
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
             <Button onClick={() => { setCampaignOpen(false); campaignForm.resetFields() }}>Cancelar</Button>
-            <Button type="primary" htmlType="submit" icon={<NotificationOutlined />}
-              loading={campaignMutation.isPending}
+            <Button type="primary" htmlType="submit"
+              icon={campaignType === 'stagnant' ? <WarningOutlined /> : <NotificationOutlined />}
+              loading={campaignMutation.isPending || stagnantMutation.isPending}
               style={{ background: '#722ed1', borderColor: '#722ed1' }}>
-              Enviar campaña
+              {campaignType === 'stagnant' ? 'Enviar recordatorios' : 'Enviar campaña'}
             </Button>
           </div>
         </Form>

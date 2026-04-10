@@ -14,11 +14,17 @@ from app.models.buyer import Buyer
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 
-PAID_STATUSES = [OrderStatus.PAID, OrderStatus.PREPARING, OrderStatus.SHIPPED, OrderStatus.DELIVERED]
+PAID_STATUSES = [OrderStatus.PAID, OrderStatus.PREPARING, OrderStatus.SHIPPED, OrderStatus.DELIVERED, OrderStatus.CLOSED]
 
 
 def _period_bounds(period: str, now: datetime):
-    """Return (current_start, current_end, prev_start, prev_end) for WTD/MTD/QTD/YTD."""
+    """Return (current_start, current_end, prev_start, prev_end) for TODAY/WTD/MTD/QTD/YTD."""
+    if period == "TODAY":
+        cur_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        prev_start = cur_start - timedelta(days=1)
+        prev_end = cur_start
+        return cur_start, now, prev_start, prev_end
+
     if period == "WTD":
         # Week starts Monday
         days_since_monday = now.weekday()
@@ -121,11 +127,17 @@ def get_summary(
     # All-time totals
     all_gross, all_commission, all_orders_total = _revenue_query(db, datetime(2000, 1, 1, tzinfo=timezone.utc), now)
 
-    # Pending seller payouts
+    # Pending seller payouts (shipped orders not yet paid)
     pending_payouts = db.query(func.sum(Order.seller_payout_amount)).filter(
         Order.seller_paid == 0,
-        Order.status == OrderStatus.DELIVERED,
+        Order.status == OrderStatus.SHIPPED,
     ).scalar() or Decimal("0")
+
+    # Finalized orders count (matches the "Cerrados" tab: closed + cancelled + refunded)
+    finalized_statuses = [OrderStatus.CLOSED, OrderStatus.CANCELLED, OrderStatus.REFUNDED]
+    closed_orders_count = db.query(func.count(Order.id)).filter(
+        Order.status.in_(finalized_statuses)
+    ).scalar() or 0
 
     # Stagnant items (listed > 30 days)
     stagnant_threshold = now - timedelta(days=30)
@@ -174,6 +186,7 @@ def get_summary(
             "units_sold_month": units_sold,
         },
         "pending_seller_payouts": float(pending_payouts),
+        "closed_orders_count": closed_orders_count,
         "stagnant_items_count": stagnant_count or 0,
         "totals": {
             "sellers": db.query(func.count(Seller.id)).scalar(),
@@ -297,6 +310,24 @@ def sales_by_category(
     return [{"category": r[0].value, "units": r[1], "revenue": float(r[2] or 0)} for r in rows]
 
 
+@router.get("/community-stats")
+def community_stats(db: Session = Depends(get_db)):
+    """Public endpoint — returns totals for the landing page."""
+    total_items = db.query(func.count(Item.id)).filter(Item.status == ItemStatus.LISTED).scalar() or 0
+    total_sellers = db.query(func.count(Seller.id)).scalar() or 0
+    total_buyers = db.query(func.count(Buyer.id)).scalar() or 0
+    total_orders = db.query(func.count(Order.id)).filter(
+        Order.status.in_(PAID_STATUSES)
+    ).scalar() or 0
+    return {
+        "total_items": total_items,
+        "total_sellers": total_sellers,
+        "total_buyers": total_buyers,
+        "total_mamis": total_sellers + total_buyers,
+        "total_orders": total_orders,
+    }
+
+
 @router.get("/stagnant-items")
 def stagnant_items(days: int = 30, limit: int = 20, db: Session = Depends(get_db), _=Depends(get_current_user)):
     threshold = datetime.now(timezone.utc) - timedelta(days=days)
@@ -328,7 +359,7 @@ def seller_stats(seller_id: int, db: Session = Depends(get_db), _=Depends(get_cu
         Item.seller_id == seller_id, Order.status.in_(PAID_STATUSES)
     ).scalar()
     pending_payout = db.query(func.sum(Order.seller_payout_amount)).join(Item, Order.item_id == Item.id).filter(
-        Item.seller_id == seller_id, Order.status == OrderStatus.DELIVERED, Order.seller_paid == 0
+        Item.seller_id == seller_id, Order.status == OrderStatus.SHIPPED, Order.seller_paid == 0
     ).scalar()
     return {
         "total_items": total_items, "listed": listed, "sold": sold,

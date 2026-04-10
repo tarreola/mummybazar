@@ -7,7 +7,7 @@ export default function Login() {
   const navigate = useNavigate()
   const [params] = useSearchParams()
   const { login } = useAuth()
-  const [role, setRole] = useState<'buyer' | 'seller'>('buyer')
+  const [role] = useState<'buyer' | 'seller'>('seller')
   const [phone, setPhone] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
@@ -33,25 +33,9 @@ export default function Login() {
     <div className="container" style={{ maxWidth: 400, paddingTop: 60, paddingBottom: 60 }}>
       <div className="card" style={{ padding: 32 }}>
         <div style={{ textAlign: 'center', marginBottom: 24 }}>
-          <div style={{ fontSize: 32, marginBottom: 4 }}>💖</div>
-          <h1 style={{ fontSize: 22, fontWeight: 800, color: 'var(--pink)' }}>Iniciar sesión</h1>
+          <div style={{ fontSize: 32, marginBottom: 4 }}>🏷️</div>
+          <h1 style={{ fontSize: 22, fontWeight: 800, color: 'var(--pink)' }}>Portal Vendedoras</h1>
           <p style={{ color: 'var(--muted)', fontSize: 13, marginTop: 4 }}>Bienvenida de vuelta 🌸</p>
-        </div>
-
-        {/* Role selector */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 24 }}>
-          {(['buyer', 'seller'] as const).map(r => (
-            <button key={r} type="button"
-              onClick={() => setRole(r)}
-              style={{
-                padding: '10px', borderRadius: 10, cursor: 'pointer', fontWeight: 600, fontSize: 13,
-                border: `2px solid ${role === r ? 'var(--pink)' : 'var(--pink-border)'}`,
-                background: role === r ? 'var(--pink-light)' : '#fff',
-                color: role === r ? 'var(--pink)' : 'var(--muted)',
-              }}>
-              {r === 'buyer' ? '🛍️ Compradora' : '🏷️ Vendedora'}
-            </button>
-          ))}
         </div>
 
         <form onSubmit={submit}>
@@ -78,8 +62,12 @@ export default function Login() {
         </form>
 
         <div style={{ textAlign: 'center', marginTop: 20, fontSize: 13, color: 'var(--muted)' }}>
-          ¿No tienes cuenta?{' '}
+          ¿Eres nueva vendedora?{' '}
           <Link to="/registro" style={{ color: 'var(--pink)', fontWeight: 600 }}>Regístrate aquí</Link>
+        </div>
+        <div style={{ textAlign: 'center', marginTop: 10, fontSize: 12, color: 'var(--muted)' }}>
+          ¿Quieres rastrear tu pedido?{' '}
+          <Link to="/seguimiento" style={{ color: 'var(--pink)' }}>Busca aquí 📦</Link>
         </div>
       </div>
     </div>

@@ -6,7 +6,7 @@ import { useAuth } from '../store/auth'
 export default function Register() {
   const navigate = useNavigate()
   const { login } = useAuth()
-  const [role, setRole] = useState<'buyer' | 'seller'>('buyer')
+  const [role] = useState<'buyer' | 'seller'>('seller')
   const [form, setForm] = useState({
     full_name: '', phone: '', email: '', password: '', password2: '',
     neighborhood: '', city: 'Ciudad de México', bank_name: '', clabe: '',
@@ -43,28 +43,11 @@ export default function Register() {
     <div className="container" style={{ maxWidth: 480, paddingTop: 40, paddingBottom: 60 }}>
       <div className="card" style={{ padding: 32 }}>
         <div style={{ textAlign: 'center', marginBottom: 24 }}>
-          <div style={{ fontSize: 32, marginBottom: 4 }}>🌸</div>
-          <h1 style={{ fontSize: 22, fontWeight: 800, color: 'var(--pink)' }}>Crear cuenta</h1>
+          <div style={{ fontSize: 32, marginBottom: 4 }}>🏷️</div>
+          <h1 style={{ fontSize: 22, fontWeight: 800, color: 'var(--pink)' }}>Registrarme como vendedora</h1>
           <p style={{ color: 'var(--muted)', fontSize: 13, marginTop: 4 }}>
-            Únete a MommyBazar
+            Vende tus artículos en MommyBazar
           </p>
-        </div>
-
-        {/* Role selector */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 24 }}>
-          {(['buyer', 'seller'] as const).map(r => (
-            <button key={r} type="button"
-              onClick={() => setRole(r)}
-              style={{
-                padding: '12px', borderRadius: 10, cursor: 'pointer', fontWeight: 600,
-                border: `2px solid ${role === r ? 'var(--pink)' : 'var(--pink-border)'}`,
-                background: role === r ? 'var(--pink-light)' : '#fff',
-                color: role === r ? 'var(--pink)' : 'var(--muted)',
-                transition: 'all .15s',
-              }}>
-              {r === 'buyer' ? '🛍️ Soy compradora' : '🏷️ Soy vendedora'}
-            </button>
-          ))}
         </div>
 
         <form onSubmit={submit}>
@@ -101,21 +84,19 @@ export default function Register() {
             </div>
           </div>
 
-          {role === 'seller' && (
-            <div style={{ background: 'var(--pink-light)', borderRadius: 10, padding: 14, marginBottom: 8 }}>
-              <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--pink)', marginBottom: 10 }}>
-                💸 Datos de pago (para recibir tus ganancias)
-              </div>
-              <div className="form-group" style={{ marginBottom: 8 }}>
-                <label>Banco</label>
-                <input value={form.bank_name} onChange={set('bank_name')} placeholder="BBVA, Santander…" />
-              </div>
-              <div className="form-group" style={{ marginBottom: 0 }}>
-                <label>CLABE interbancaria</label>
-                <input value={form.clabe} onChange={set('clabe')} placeholder="18 dígitos" />
-              </div>
+          <div style={{ background: 'var(--pink-light)', borderRadius: 10, padding: 14, marginBottom: 8 }}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--pink)', marginBottom: 10 }}>
+              💸 Datos de pago (para recibir tus ganancias)
             </div>
-          )}
+            <div className="form-group" style={{ marginBottom: 8 }}>
+              <label>Banco</label>
+              <input value={form.bank_name} onChange={set('bank_name')} placeholder="BBVA, Santander…" />
+            </div>
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label>CLABE interbancaria</label>
+              <input value={form.clabe} onChange={set('clabe')} placeholder="18 dígitos" />
+            </div>
+          </div>
 
           {error && (
             <div style={{ background: '#fff1f0', border: '1px solid #ffccc7', borderRadius: 8, padding: '10px 14px', marginBottom: 14, fontSize: 13, color: '#cf1322' }}>
@@ -134,7 +115,7 @@ export default function Register() {
         </div>
 
         <div style={{ marginTop: 16, padding: 12, background: '#fffbe6', borderRadius: 8, fontSize: 12, color: '#7c6000' }}>
-          ℹ️ Tu registro quedará pendiente de aprobación del equipo MommyBazar. Puedes comprar de inmediato, la aprobación es solo para vendedoras que quieran publicar artículos.
+          ℹ️ Tu registro quedará pendiente de aprobación del equipo MommyBazar. Te contactaremos por WhatsApp para activar tu cuenta.
         </div>
       </div>
     </div>

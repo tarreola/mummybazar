@@ -1,51 +1,101 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   Table, Tag, Button, Modal, Form, Input, Select, Space, Typography,
   Tooltip, message, Tabs, Statistic, Row, Col, Card, Drawer,
-  Descriptions, Steps, Divider, Badge, Popconfirm, Alert,
+  Descriptions, Steps, Divider, Popconfirm, Alert, AutoComplete,
 } from 'antd'
 import {
   EditOutlined, CheckCircleOutlined, WhatsAppOutlined, PlusOutlined,
   ShoppingCartOutlined, CarOutlined, GiftOutlined, DollarOutlined,
-  ClockCircleOutlined, CloseCircleOutlined,
+  ClockCircleOutlined, CloseCircleOutlined, SearchOutlined,
 } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import dayjs from 'dayjs'
 import { getOrders, updateOrder, createOrder, getItems, getBuyers } from '../api/client'
-import type { Order, OrderStatus, Item, Buyer } from '../types'
+import api from '../api/client'
+import type { Order, OrderStatus, Item } from '../types'
 
 const { Title, Text } = Typography
 const { Option } = Select
 
 // ── Status config ──────────────────────────────────────────────────────────────
 const STATUS_COLOR: Record<OrderStatus, string> = {
-  pending_payment: 'orange', paid: 'blue', preparing: 'cyan',
-  shipped: 'purple', delivered: 'green', cancelled: 'red', refunded: 'default',
+  pending_payment: 'orange',
+  paid: 'blue',
+  preparing: 'cyan',
+  shipped: 'purple',
+  delivered: 'purple',  // legacy — treated same as shipped
+  closed: 'default',
+  cancelled: 'red',
+  refunded: 'default',
 }
 const STATUS_LABEL: Record<OrderStatus, string> = {
-  pending_payment: 'Pago pendiente', paid: 'Pagado', preparing: 'Preparando',
-  shipped: 'Enviado', delivered: 'Entregado', cancelled: 'Cancelado', refunded: 'Reembolsado',
+  pending_payment: 'Pago pendiente',
+  paid: 'Compra realizada',
+  preparing: 'Preparando',
+  shipped: 'Enviado',
+  delivered: 'Enviado',  // legacy — display same as shipped
+  closed: 'Cerrado',
+  cancelled: 'Cancelado',
+  refunded: 'Reembolsado',
 }
+// Max days allowed in each status before showing a warning
+const STATUS_MAX_DAYS: Partial<Record<OrderStatus, number>> = {
+  preparing: 3,
+  shipped: 5,
+}
+
 const STATUS_ICON: Record<OrderStatus, React.ReactNode> = {
   pending_payment: <ClockCircleOutlined />,
   paid: <CheckCircleOutlined />,
   preparing: <GiftOutlined />,
   shipped: <CarOutlined />,
   delivered: <CheckCircleOutlined />,
+  closed: <CloseCircleOutlined />,
   cancelled: <CloseCircleOutlined />,
   refunded: <CloseCircleOutlined />,
 }
 
-const FLOW_STEPS: OrderStatus[] = ['pending_payment', 'paid', 'preparing', 'shipped', 'delivered']
+// Main flow (non-terminal steps) — delivered removed, flow ends at shipped
+const FLOW_STEPS: OrderStatus[] = ['pending_payment', 'paid', 'preparing', 'shipped']
 
-const TAB_GROUPS = [
-  { key: 'all', label: 'Todos', statuses: [] as OrderStatus[] },
-  { key: 'active', label: 'Activos', statuses: ['pending_payment', 'paid', 'preparing'] as OrderStatus[] },
-  { key: 'shipped', label: 'Enviados', statuses: ['shipped'] as OrderStatus[] },
-  { key: 'delivered', label: 'Entregados', statuses: ['delivered'] as OrderStatus[] },
-  { key: 'closed', label: 'Cerrados', statuses: ['cancelled', 'refunded'] as OrderStatus[] },
+const ACTIVE_STATUSES: OrderStatus[] = ['pending_payment', 'paid', 'preparing', 'shipped']
+const CLOSED_STATUSES: OrderStatus[] = ['closed', 'cancelled', 'refunded']
+
+const TAB_GROUPS: { key: string; label: string; statuses: OrderStatus[]; pendingPayoutOnly?: boolean }[] = [
+  { key: 'all',             label: 'Todos',                       statuses: ACTIVE_STATUSES },
+  { key: 'pending_payment', label: 'Pago pendiente',              statuses: ['pending_payment'] },
+  { key: 'paid',            label: 'Compra realizada',            statuses: ['paid'] },
+  { key: 'preparing',       label: 'Preparando',                  statuses: ['preparing'] },
+  { key: 'shipped',         label: 'Enviado',                     statuses: ['shipped'] },
+  { key: 'pending_payout',  label: 'Pendiente pago vendedora',    statuses: ['shipped'], pendingPayoutOnly: true },
 ]
+const CLOSED_TAB: { key: string; label: string; statuses: OrderStatus[]; pendingPayoutOnly?: boolean } = { key: 'closed', label: 'Cerrados', statuses: CLOSED_STATUSES }
+
+// ── Timing helper ─────────────────────────────────────────────────────────────
+function daysSince(dateStr?: string | null): number {
+  if (!dateStr) return 0
+  return Math.floor((Date.now() - new Date(dateStr).getTime()) / 86_400_000)
+}
+
+function StatusTimingBadge({ order }: { order: Order }) {
+  const days = daysSince((order as any).status_changed_at || order.updated_at)
+  const max = STATUS_MAX_DAYS[order.status]
+  if (!days || ['closed', 'cancelled', 'refunded', 'delivered'].includes(order.status)) return null
+  const over = max ? days > max : false
+  const warn = max ? days === max : false
+  return (
+    <Tooltip title={`${days}d en este estado${over ? ' — ¡supera el máximo!' : ''}`}>
+      <Tag
+        color={over ? 'red' : warn ? 'orange' : 'default'}
+        style={{ fontSize: 10, padding: '0 4px', marginLeft: 4, cursor: 'default' }}
+      >
+        {days}d
+      </Tag>
+    </Tooltip>
+  )
+}
 
 const SHIPPING_LABEL: Record<string, string> = {
   pickup: 'Recoger en punto', delivery_cdmx: 'Entrega CDMX', parcel: 'Paquetería',
@@ -54,15 +104,16 @@ const SHIPPING_LABEL: Record<string, string> = {
 // ── Order timeline steps ───────────────────────────────────────────────────────
 function OrderTimeline({ order }: { order: Order }) {
   const currentIdx = FLOW_STEPS.indexOf(order.status)
-  const isClosed = order.status === 'cancelled' || order.status === 'refunded'
+  const isClosed = ['cancelled', 'refunded', 'closed'].includes(order.status)
 
   if (isClosed) {
+    const isCancel = order.status === 'cancelled' || order.status === 'refunded'
     return (
       <Alert
-        type="error"
+        type={isCancel ? 'error' : 'success'}
         message={`Orden ${STATUS_LABEL[order.status]}`}
         showIcon
-        icon={<CloseCircleOutlined />}
+        icon={isCancel ? <CloseCircleOutlined /> : <CheckCircleOutlined />}
         style={{ marginBottom: 16 }}
       />
     )
@@ -97,7 +148,13 @@ export default function Orders() {
   const [detailOrder, setDetailOrder] = useState<Order | null>(null)
   const [createOpen, setCreateOpen] = useState(false)
   const [needsTracking, setNeedsTracking] = useState(false)
-  const [pendingStatus, setPendingStatus] = useState<{ id: number; status: OrderStatus } | null>(null)
+  const [pendingStatus, setPendingStatus] = useState<{ id: number; status: OrderStatus; order: Order } | null>(null)
+  // Filters
+  const [filterSearch, setFilterSearch] = useState('')
+  // WhatsApp confirmation
+  const [waConfirmOpen, setWaConfirmOpen] = useState(false)
+  const [waPreview, setWaPreview] = useState<{ buyer?: string; seller?: string } | null>(null)
+  const [pendingUpdate, setPendingUpdate] = useState<{ id: number; data: object } | null>(null)
   const [trackingForm] = Form.useForm()
   const [editForm] = Form.useForm()
   const [createForm] = Form.useForm()
@@ -115,7 +172,7 @@ export default function Orders() {
     enabled: createOpen,
   })
 
-  const { data: buyers = [] } = useQuery<Buyer[]>({
+  const { data: buyerContacts = [] } = useQuery<any[]>({
     queryKey: ['buyers'],
     queryFn: () => getBuyers().then(r => r.data),
     enabled: createOpen,
@@ -130,7 +187,7 @@ export default function Orders() {
       qc.invalidateQueries({ queryKey: ['dashboard-summary'] })
       if (editOrder) setEditOrder(res.data)
       if (detailOrder) setDetailOrder(res.data)
-      message.success('Pedido actualizado — WhatsApp enviado automáticamente')
+      message.success('Pedido actualizado')
     },
     onError: () => message.error('Error al actualizar pedido'),
   })
@@ -148,24 +205,73 @@ export default function Orders() {
     onError: (e: any) => message.error(e.response?.data?.detail || 'Error al crear orden'),
   })
 
+  // ── WA status messages preview ────────────────────────────────────────────────
+  const WA_MESSAGES: Partial<Record<OrderStatus, (o: Order) => { buyer?: string; seller?: string }>> = {
+    paid: (o) => ({
+      buyer: `¡Hola ${o.buyer_name || 'Clienta'}! ✅ Confirmamos tu compra de *${o.item_title}* (Orden: *${o.order_number}*). Te avisamos cuando esté listo para envío. 📦`,
+    }),
+    preparing: (o) => ({
+      buyer: `¡Tu pedido *${o.order_number}* está siendo preparado! 📦 En máximo 3 días hábiles saldrá a tu domicilio. ¡Ya casi llega!`,
+    }),
+    shipped: (o) => ({
+      buyer: `¡Tu pedido *${o.order_number}* ya va en camino! 🚚 Te compartiremos el número de rastreo en breve.`,
+    }),
+    cancelled: (o) => ({
+      buyer: `Tu pedido *${o.order_number}* fue cancelado. El artículo vuelve al catálogo. Si tienes dudas, contáctanos. 🌸`,
+    }),
+  }
+
   // ── Handlers ──────────────────────────────────────────────────────────────────
   const changeStatus = (order: Order, status: OrderStatus) => {
     if (status === 'shipped') {
-      // Ask for tracking number first
-      setPendingStatus({ id: order.id, status })
+      setPendingStatus({ id: order.id, status, order })
       setNeedsTracking(true)
       trackingForm.resetFields()
+      return
+    }
+    // Show WA confirmation if there's a message for this status
+    const msgFn = WA_MESSAGES[status]
+    if (msgFn) {
+      const preview = msgFn(order)
+      setWaPreview(preview)
+      setPendingUpdate({ id: order.id, data: { status } })
+      setWaConfirmOpen(true)
       return
     }
     updateMutation.mutate({ id: order.id, data: { status } })
   }
 
+  const confirmWaAndUpdate = () => {
+    if (!pendingUpdate) return
+    updateMutation.mutate(pendingUpdate)
+    setWaConfirmOpen(false)
+    setPendingUpdate(null)
+    setWaPreview(null)
+  }
+
+  const skipWaAndUpdate = () => {
+    if (!pendingUpdate) return
+    updateMutation.mutate(pendingUpdate)
+    setWaConfirmOpen(false)
+    setPendingUpdate(null)
+    setWaPreview(null)
+  }
+
   const confirmTracking = (values: any) => {
     if (!pendingStatus) return
-    updateMutation.mutate({
-      id: pendingStatus.id,
-      data: { status: 'shipped', tracking_number: values.tracking_number, shipping_carrier: values.shipping_carrier },
-    })
+    const data = { status: 'shipped', tracking_number: values.tracking_number, shipping_carrier: values.shipping_carrier }
+    // Show WA preview for shipped
+    const msgFn = WA_MESSAGES['shipped']
+    if (msgFn && pendingStatus.order) {
+      const preview = msgFn(pendingStatus.order)
+      setWaPreview(preview)
+      setPendingUpdate({ id: pendingStatus.id, data })
+      setNeedsTracking(false)
+      setPendingStatus(null)
+      setWaConfirmOpen(true)
+      return
+    }
+    updateMutation.mutate({ id: pendingStatus.id, data })
     setNeedsTracking(false)
     setPendingStatus(null)
   }
@@ -189,18 +295,37 @@ export default function Orders() {
     setEditOrder(null)
   }
 
-  // ── Filtered orders by tab ────────────────────────────────────────────────────
-  const tabGroup = TAB_GROUPS.find(t => t.key === activeTab)!
-  const orders = tabGroup.statuses.length
-    ? allOrders.filter(o => tabGroup.statuses.includes(o.status))
-    : allOrders
+  // ── Filtered orders by tab + search ──────────────────────────────────────────
+  const allTabGroups = [...TAB_GROUPS, CLOSED_TAB]
+  const tabGroup = allTabGroups.find(t => t.key === activeTab) ?? TAB_GROUPS[0]
+  const orders = useMemo(() => {
+    let result = allOrders.filter(o => tabGroup.statuses.includes(o.status))
+    if (tabGroup.pendingPayoutOnly) result = result.filter(o => !o.seller_paid)
+
+    if (filterSearch.trim()) {
+      const q = filterSearch.toLowerCase()
+      result = result.filter(o =>
+        o.order_number.toLowerCase().includes(q) ||
+        (o.buyer_name || '').toLowerCase().includes(q) ||
+        (o.seller_name || '').toLowerCase().includes(q) ||
+        (o.item_title || '').toLowerCase().includes(q) ||
+        (o.item_sku || '').toLowerCase().includes(q)
+      )
+    }
+    return result
+  }, [allOrders, tabGroup, filterSearch])
+
+  const tabCount = (t: typeof TAB_GROUPS[0]) => {
+    const base = allOrders.filter(o => t.statuses.includes(o.status))
+    return t.pendingPayoutOnly ? base.filter(o => !o.seller_paid).length : base.length
+  }
 
   // ── Summary KPIs ──────────────────────────────────────────────────────────────
   const confirmedOrders = allOrders.filter(o => ['paid', 'preparing', 'shipped', 'delivered'].includes(o.status))
   const totalRevenue = confirmedOrders.reduce((s, o) => s + Number(o.amount), 0)
   const pendingCount = allOrders.filter(o => o.status === 'pending_payment').length
   const pendingPayouts = allOrders
-    .filter(o => o.status === 'delivered' && !o.seller_paid)
+    .filter(o => o.status === 'shipped' && !o.seller_paid)
     .reduce((s, o) => s + Number(o.seller_payout_amount), 0)
 
   // ── Table columns ─────────────────────────────────────────────────────────────
@@ -242,21 +367,24 @@ export default function Orders() {
       render: v => <Text strong>${Number(v).toLocaleString('es-MX')}</Text>,
     },
     {
-      title: 'Estado', dataIndex: 'status', width: 145,
+      title: 'Estado', dataIndex: 'status', width: 175,
       render: (v: OrderStatus, record) => (
-        <Select
-          size="small" value={v} style={{ width: 138 }}
-          loading={updateMutation.isPending}
-          onChange={(status: OrderStatus) => changeStatus(record, status)}
-        >
-          {Object.entries(STATUS_LABEL).map(([k, label]) => (
-            <Option key={k} value={k}>
-              <Tag color={STATUS_COLOR[k as OrderStatus]} style={{ margin: 0, fontSize: 11 }}>
-                {label}
-              </Tag>
-            </Option>
-          ))}
-        </Select>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          <Select
+            size="small" value={v} style={{ width: 148 }}
+            loading={updateMutation.isPending}
+            onChange={(status: OrderStatus) => changeStatus(record, status)}
+          >
+            {Object.entries(STATUS_LABEL).filter(([k]) => k !== 'closed').map(([k, label]) => (
+              <Option key={k} value={k}>
+                <Tag color={STATUS_COLOR[k as OrderStatus]} style={{ margin: 0, fontSize: 11 }}>
+                  {label}
+                </Tag>
+              </Option>
+            ))}
+          </Select>
+          <StatusTimingBadge order={record} />
+        </div>
       ),
     },
     {
@@ -268,9 +396,9 @@ export default function Orders() {
       render: (v, r) => v
         ? <Tag color="green" icon={<CheckCircleOutlined />}>Pagado</Tag>
         : (
-          <Tooltip title={r.status !== 'delivered' ? 'Solo disponible cuando orden entregada' : 'Marcar pago realizado'}>
+          <Tooltip title={r.status !== 'shipped' ? 'Disponible cuando el pedido está Enviado' : 'Confirmar pago — cerrará el pedido'}>
             <Button size="small" icon={<DollarOutlined />} type="dashed"
-              disabled={r.status !== 'delivered'}
+              disabled={r.status !== 'shipped'}
               onClick={() => updateMutation.mutate({ id: r.id, data: { seller_paid: 1 } })}>
               Pendiente
             </Button>
@@ -315,15 +443,53 @@ export default function Orders() {
         ))}
       </Row>
 
+      {/* Search */}
+      <div style={{ marginBottom: 12 }}>
+        <Input
+          placeholder="Buscar compradora, vendedora, artículo, SKU…"
+          prefix={<SearchOutlined style={{ color: '#c41d7f' }} />}
+          value={filterSearch}
+          onChange={e => setFilterSearch(e.target.value)}
+          allowClear
+          style={{ width: 320 }}
+        />
+      </div>
+
       {/* Tabs */}
-      <Tabs activeKey={activeTab} onChange={setActiveTab}
+      <Tabs
+        activeKey={activeTab}
+        onChange={setActiveTab}
+        tabBarExtraContent={{
+          right: (
+            <div
+              style={{
+                padding: '0 16px',
+                height: 40,
+                display: 'flex',
+                alignItems: 'center',
+                cursor: 'pointer',
+                borderBottom: activeTab === 'closed' ? '2px solid #c41d7f' : '2px solid transparent',
+                color: activeTab === 'closed' ? '#c41d7f' : 'rgba(0,0,0,0.65)',
+                fontWeight: activeTab === 'closed' ? 600 : 400,
+                marginBottom: -1,
+                transition: 'color 0.2s',
+              }}
+              onClick={() => setActiveTab('closed')}
+            >
+              {CLOSED_TAB.label}
+              <Tag style={{ marginLeft: 6, fontSize: 11 }}>
+                {tabCount(CLOSED_TAB)}
+              </Tag>
+            </div>
+          ),
+        }}
         items={TAB_GROUPS.map(t => ({
           key: t.key,
           label: (
             <span>
               {t.label}
               <Tag style={{ marginLeft: 6, fontSize: 11 }}>
-                {t.statuses.length ? allOrders.filter(o => t.statuses.includes(o.status)).length : allOrders.length}
+                {tabCount(t)}
               </Tag>
             </span>
           ),
@@ -461,18 +627,18 @@ export default function Orders() {
                   Marcar enviado
                 </Button>
               )}
-              {detailOrder.status === 'shipped' && (
-                <Button size="small" type="primary"
-                  style={{ background: '#389e0d', borderColor: '#389e0d' }}
-                  onClick={() => changeStatus(detailOrder, 'delivered')}>
-                  Confirmar entregado
-                </Button>
-              )}
-              {detailOrder.status === 'delivered' && !detailOrder.seller_paid && (
-                <Button size="small" icon={<DollarOutlined />}
-                  onClick={() => updateMutation.mutate({ id: detailOrder.id, data: { seller_paid: 1 } })}>
-                  Registrar pago a vendedora
-                </Button>
+              {detailOrder.status === 'shipped' && !detailOrder.seller_paid && (
+                <Popconfirm
+                  title="¿Registrar pago a vendedora?"
+                  description="El pedido se cerrará automáticamente al confirmar el pago."
+                  onConfirm={() => updateMutation.mutate({ id: detailOrder.id, data: { seller_paid: 1 } })}
+                  okText="Confirmar pago" cancelText="No"
+                >
+                  <Button size="small" icon={<DollarOutlined />} type="primary"
+                    style={{ background: '#d46b08', borderColor: '#d46b08' }}>
+                    Registrar pago a vendedora
+                  </Button>
+                </Popconfirm>
               )}
               {['pending_payment', 'paid', 'preparing'].includes(detailOrder.status) && (
                 <Popconfirm
@@ -521,6 +687,43 @@ export default function Orders() {
         </Form>
       </Modal>
 
+      {/* ── WhatsApp confirmation modal ───────────────────────────────────────── */}
+      <Modal
+        open={waConfirmOpen}
+        title={<span><WhatsAppOutlined style={{ color: '#25d366', marginRight: 8 }} />Confirmar notificaciones WhatsApp</span>}
+        onCancel={skipWaAndUpdate}
+        footer={null}
+        width={480}
+      >
+        <Alert
+          message="Se enviarán los siguientes mensajes al actualizar el pedido."
+          type="info" showIcon style={{ marginBottom: 16 }}
+        />
+        {waPreview?.buyer && (
+          <Card size="small" style={{ marginBottom: 10, borderColor: '#25d366', borderRadius: 8 }}>
+            <Text type="secondary" style={{ fontSize: 11 }}>📱 Mensaje a compradora:</Text>
+            <p style={{ margin: '6px 0 0', fontSize: 13, whiteSpace: 'pre-wrap', lineHeight: 1.5 }}>{waPreview.buyer}</p>
+          </Card>
+        )}
+        {waPreview?.seller && (
+          <Card size="small" style={{ marginBottom: 10, borderColor: '#096dd9', borderRadius: 8 }}>
+            <Text type="secondary" style={{ fontSize: 11 }}>📱 Mensaje a vendedora:</Text>
+            <p style={{ margin: '6px 0 0', fontSize: 13, whiteSpace: 'pre-wrap', lineHeight: 1.5 }}>{waPreview.seller}</p>
+          </Card>
+        )}
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
+          <Button onClick={skipWaAndUpdate}>Actualizar sin WhatsApp</Button>
+          <Button
+            type="primary" icon={<WhatsAppOutlined />}
+            onClick={confirmWaAndUpdate}
+            loading={updateMutation.isPending}
+            style={{ background: '#25d366', borderColor: '#25d366' }}
+          >
+            Confirmar y enviar WhatsApp
+          </Button>
+        </div>
+      </Modal>
+
       {/* ── Nueva Orden modal ─────────────────────────────────────────────────── */}
       <Modal
         open={createOpen}
@@ -535,10 +738,47 @@ export default function Orders() {
         />
         <Form form={createForm} layout="vertical"
           onFinish={v => createMutation.mutate(v)}>
-          <Form.Item name="buyer_id" label="Compradora" rules={[{ required: true, message: 'Selecciona una compradora' }]}>
-            <Select showSearch optionFilterProp="label" placeholder="Buscar compradora…"
-              options={buyers.map(b => ({ value: b.id, label: `${b.full_name} (${b.phone})` }))} />
+
+          <Divider style={{ margin: '4px 0 12px' }}>Datos de la compradora</Divider>
+
+          {/* Phone with autocomplete from contact DB */}
+          <Form.Item name="buyer_phone" label="WhatsApp / Teléfono" rules={[{ required: true, message: 'Requerido' }]}
+            extra="Si ya existe en la base de contactos, se autocompletará.">
+            <AutoComplete
+              placeholder="+525512345678"
+              options={buyerContacts.map(b => ({
+                value: b.phone,
+                label: `${b.phone} — ${b.full_name}`,
+              }))}
+              filterOption={(input, opt) =>
+                (opt?.value || '').includes(input) || (opt?.label as string || '').toLowerCase().includes(input.toLowerCase())
+              }
+              onSelect={(phone: string) => {
+                const match = buyerContacts.find(b => b.phone === phone)
+                if (match) createForm.setFieldsValue({
+                  buyer_name: match.full_name,
+                  buyer_whatsapp: match.whatsapp || match.phone,
+                  buyer_email: match.email || undefined,
+                })
+              }}
+            />
           </Form.Item>
+
+          <Form.Item name="buyer_name" label="Nombre completo" rules={[{ required: true, message: 'Requerido' }]}>
+            <Input placeholder="María González" />
+          </Form.Item>
+
+          <Space style={{ width: '100%' }} styles={{ item: { flex: 1 } }}>
+            <Form.Item name="buyer_whatsapp" label="WhatsApp (si diferente)">
+              <Input placeholder="+525512345678" />
+            </Form.Item>
+            <Form.Item name="buyer_email" label="Email">
+              <Input placeholder="maria@email.com" />
+            </Form.Item>
+          </Space>
+
+          <Divider style={{ margin: '4px 0 12px' }}>Artículo y envío</Divider>
+
           <Form.Item name="item_id" label="Artículo (solo publicados)" rules={[{ required: true, message: 'Selecciona un artículo' }]}>
             <Select showSearch optionFilterProp="label" placeholder="Buscar artículo…"
               options={listedItems.map(i => ({ value: i.id, label: `${i.sku} — ${i.title} ($${Number(i.selling_price).toLocaleString('es-MX')})` }))} />

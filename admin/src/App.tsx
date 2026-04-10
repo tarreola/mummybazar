@@ -5,7 +5,6 @@ import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
 import Inventory from './pages/Inventory'
 import Sellers from './pages/Sellers'
-import Buyers from './pages/Buyers'
 import Orders from './pages/Orders'
 import WhatsApp from './pages/WhatsApp'
 
@@ -26,7 +25,7 @@ export default function App() {
               <Route path="/" element={<Dashboard />} />
               <Route path="/inventory" element={<Inventory />} />
               <Route path="/sellers" element={<Sellers />} />
-              <Route path="/buyers" element={<Buyers />} />
+              <Route path="/buyers" element={<Navigate to="/whatsapp" replace />} />
               <Route path="/orders" element={<Orders />} />
               <Route path="/whatsapp" element={<WhatsApp />} />
               <Route path="*" element={<Navigate to="/" replace />} />

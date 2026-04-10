@@ -11,7 +11,8 @@ class OrderStatus(str, enum.Enum):
     PAID = "paid"
     PREPARING = "preparing"       # Item pulled from inventory
     SHIPPED = "shipped"
-    DELIVERED = "delivered"
+    DELIVERED = "delivered"       # Buyer confirmed receipt
+    CLOSED = "closed"             # Final — archived record
     CANCELLED = "cancelled"
     REFUNDED = "refunded"
 
@@ -29,7 +30,14 @@ class Order(Base):
     id = Column(Integer, primary_key=True, index=True)
     order_number = Column(String, unique=True, index=True, nullable=False)  # e.g. ORD-2024-00001
 
-    buyer_id = Column(Integer, ForeignKey("buyers.id"), nullable=False)
+    # Buyer contact — stored directly on the order (no account required)
+    buyer_name = Column(String, nullable=True)
+    buyer_phone = Column(String, nullable=True)       # WhatsApp number
+    buyer_whatsapp = Column(String, nullable=True)    # same or different from phone
+    buyer_email = Column(String, nullable=True)
+
+    # Legacy FK — nullable, kept for backward compat with existing data
+    buyer_id = Column(Integer, ForeignKey("buyers.id"), nullable=True)
     item_id = Column(Integer, ForeignKey("items.id"), nullable=False)
 
     # Pricing snapshot at time of purchase
@@ -53,6 +61,7 @@ class Order(Base):
     seller_paid_at = Column(DateTime(timezone=True), nullable=True)
 
     notes = Column(Text, nullable=True)
+    status_changed_at = Column(DateTime(timezone=True), nullable=True)   # when status last changed
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 

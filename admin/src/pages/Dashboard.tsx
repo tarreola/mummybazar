@@ -6,6 +6,7 @@ import {
 } from 'antd'
 import {
   RiseOutlined, FallOutlined, MinusOutlined, WarningOutlined, TrophyOutlined,
+  InstagramOutlined, EyeOutlined, TeamOutlined, ShoppingOutlined,
 } from '@ant-design/icons'
 import { Column, Pie } from '@ant-design/charts'
 import dayjs, { Dayjs } from 'dayjs'
@@ -25,6 +26,7 @@ const CATEGORY_LABEL: Record<string, string> = {
 }
 
 const PERIOD_OPTIONS = [
+  { label: 'Hoy', value: 'TODAY' },
   { label: 'Semana', value: 'WTD' },
   { label: 'Mes', value: 'MTD' },
   { label: 'Trimestre', value: 'QTD' },
@@ -33,6 +35,7 @@ const PERIOD_OPTIONS = [
 ]
 
 const COMPARISON_LABEL: Record<string, string> = {
+  TODAY: 'vs ayer',
   WTD: 'vs sem. anterior',
   MTD: 'vs mes anterior',
   QTD: 'vs trimestre ant.',
@@ -132,9 +135,9 @@ export default function Dashboard() {
     enabled: isCustomReady,
   })
 
-  const { data: stagnant = [] } = useQuery({
-    queryKey: ['stagnant-items'],
-    queryFn: () => api.get('/dashboard/stagnant-items?days=30&limit=10').then(r => r.data),
+  const { data: communityStats } = useQuery({
+    queryKey: ['community-stats'],
+    queryFn: () => api.get('/dashboard/community-stats').then(r => r.data),
   })
 
   const compLabel = COMPARISON_LABEL[period]
@@ -185,7 +188,7 @@ export default function Dashboard() {
   const STATUS_LABELS: Record<string, string> = {
     received: 'Recibido', inspected: 'Inspeccionado', listed: 'Publicado',
     sold: 'Vendido', shipped: 'Enviado', delivered: 'Entregado',
-    returned: 'Devuelto', archived: 'Archivado',
+    returned: 'Devuelto', archived: 'Donado',
   }
 
   return (
@@ -228,7 +231,7 @@ export default function Dashboard() {
       <Row gutter={[12, 12]} style={{ marginTop: 12 }}>
         {[
           { title: 'Vendedoras', value: s.totals.sellers, color: '#c41d7f' },
-          { title: 'Compradoras', value: s.totals.buyers, color: '#722ed1' },
+          { title: 'Pedidos cerrados', value: s.closed_orders_count ?? 0, color: '#595959' },
           { title: 'Pagos pendientes a vendedoras', value: s.pending_seller_payouts, prefix: '$', suffix: 'MXN', color: '#d46b08' },
           { title: 'Artículos sin movimiento (+30 días)', value: s.stagnant_items_count, color: '#f5222d' },
         ].map(k => (
@@ -322,34 +325,57 @@ export default function Dashboard() {
         </Col>
       </Row>
 
-      {/* Row 5 — Stagnant items */}
-      {stagnant.length > 0 && (
-        <Row gutter={[12, 12]} style={{ marginTop: 12 }}>
-          <Col xs={24}>
-            <Card
-              title={<span><WarningOutlined style={{ color: '#f5222d', marginRight: 6 }} />Artículos sin movimiento (+30 días publicados)</span>}
-              style={{ borderRadius: 12, borderColor: '#ffccc7' }}
-            >
-              <Table
-                dataSource={stagnant}
-                rowKey="id"
-                size="small"
-                pagination={false}
-                columns={[
-                  { title: 'SKU', dataIndex: 'sku', width: 130, render: v => <code style={{ color: '#c41d7f' }}>{v}</code> },
-                  { title: 'Artículo', dataIndex: 'title' },
-                  { title: 'Categoría', dataIndex: 'category', width: 110, render: v => CATEGORY_LABEL[v] || v },
-                  { title: 'Precio', dataIndex: 'selling_price', width: 110, render: v => `$${Number(v).toLocaleString('es-MX')}` },
-                  {
-                    title: 'Días publicado', dataIndex: 'days_listed', width: 120,
-                    render: v => <Tag color="red">{v} días</Tag>,
-                  },
-                ]}
-              />
-            </Card>
-          </Col>
-        </Row>
-      )}
+      {/* Row 5 — Web Analytics + Community stats */}
+      <Row gutter={[12, 12]} style={{ marginTop: 12 }}>
+        <Col xs={24} lg={12}>
+          <Card
+            title={<span><InstagramOutlined style={{ color: '#c41d7f', marginRight: 6 }} />Web Analytics</span>}
+            style={{ borderRadius: 12, borderColor: '#ffe0f0' }}
+            extra={<Tag color="orange">Próximamente Instagram API</Tag>}
+          >
+            <Row gutter={[12, 12]}>
+              {[
+                { icon: <EyeOutlined />, label: 'Visitas esta semana', value: '—', note: 'Conectar Google Analytics' },
+                { icon: <InstagramOutlined />, label: 'Seguidores IG', value: '—', note: 'Conectar Instagram Insights' },
+                { icon: <InstagramOutlined />, label: 'Alcance semanal', value: '—', note: 'Disponible con cuenta business' },
+                { icon: <EyeOutlined />, label: 'Sesiones activas', value: '—', note: 'Conectar Google Analytics' },
+              ].map(item => (
+                <Col xs={12} key={item.label}>
+                  <div style={{ padding: '8px 12px', background: '#fff0f6', borderRadius: 8 }}>
+                    <div style={{ color: '#c41d7f', fontSize: 18, marginBottom: 2 }}>{item.icon}</div>
+                    <div style={{ fontSize: 20, fontWeight: 700, color: '#595959' }}>{item.value}</div>
+                    <div style={{ fontSize: 11, color: '#888', lineHeight: 1.3 }}>{item.label}</div>
+                    <div style={{ fontSize: 10, color: '#aaa', marginTop: 2 }}>{item.note}</div>
+                  </div>
+                </Col>
+              ))}
+            </Row>
+          </Card>
+        </Col>
+        <Col xs={24} lg={12}>
+          <Card
+            title={<span><TeamOutlined style={{ color: '#722ed1', marginRight: 6 }} />Comunidad MommyBazar</span>}
+            style={{ borderRadius: 12, borderColor: '#ffe0f0', height: '100%' }}
+          >
+            <Row gutter={[12, 12]}>
+              {communityStats ? [
+                { icon: <TeamOutlined />, label: 'Mamis en la comunidad', value: communityStats.total_mamis, color: '#c41d7f' },
+                { icon: <ShoppingOutlined />, label: 'Artículos disponibles', value: communityStats.total_items, color: '#389e0d' },
+                { icon: <TeamOutlined />, label: 'Vendedoras', value: communityStats.total_sellers, color: '#722ed1' },
+                { icon: <TeamOutlined />, label: 'Compradoras', value: communityStats.total_buyers, color: '#096dd9' },
+              ].map(item => (
+                <Col xs={12} key={item.label}>
+                  <div style={{ padding: '8px 12px', background: '#f9f0ff', borderRadius: 8 }}>
+                    <div style={{ color: item.color, fontSize: 18, marginBottom: 2 }}>{item.icon}</div>
+                    <div style={{ fontSize: 24, fontWeight: 800, color: item.color }}>{item.value}</div>
+                    <div style={{ fontSize: 11, color: '#888' }}>{item.label}</div>
+                  </div>
+                </Col>
+              )) : <div style={{ padding: 16 }}><Text type="secondary">Cargando…</Text></div>}
+            </Row>
+          </Card>
+        </Col>
+      </Row>
     </div>
   )
 }

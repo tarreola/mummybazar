@@ -1,7 +1,7 @@
 import { Layout, Menu, Avatar, Dropdown, Typography, Button } from 'antd'
 import {
   DashboardOutlined, ShoppingOutlined, TeamOutlined,
-  UserOutlined, OrderedListOutlined, WhatsAppOutlined, LogoutOutlined,
+  OrderedListOutlined, WhatsAppOutlined, LogoutOutlined, UserOutlined,
 } from '@ant-design/icons'
 import { useNavigate, useLocation, Outlet } from 'react-router-dom'
 import { useAuth } from '../store/auth'
@@ -13,9 +13,8 @@ const NAV_ITEMS = [
   { key: '/', icon: <DashboardOutlined />, label: 'Dashboard' },
   { key: '/inventory', icon: <ShoppingOutlined />, label: 'Inventario' },
   { key: '/sellers', icon: <TeamOutlined />, label: 'Vendedoras' },
-  { key: '/buyers', icon: <UserOutlined />, label: 'Compradoras' },
   { key: '/orders', icon: <OrderedListOutlined />, label: 'Pedidos' },
-  { key: '/whatsapp', icon: <WhatsAppOutlined />, label: 'WhatsApp' },
+  { key: '/whatsapp', icon: <WhatsAppOutlined />, label: 'WhatsApp Hub' },
 ]
 
 export default function AppLayout() {

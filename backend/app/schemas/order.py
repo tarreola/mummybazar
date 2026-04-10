@@ -7,7 +7,12 @@ from app.models.order import OrderStatus, ShippingMethod
 
 
 class OrderCreate(BaseModel):
-    buyer_id: int
+    # Buyer contact — required, no account needed
+    buyer_name: str
+    buyer_phone: str
+    buyer_whatsapp: Optional[str] = None   # defaults to buyer_phone if omitted
+    buyer_email: Optional[str] = None
+
     item_id: int
     shipping_method: Optional[ShippingMethod] = None
     shipping_address: Optional[str] = None
@@ -22,12 +27,21 @@ class OrderUpdate(BaseModel):
     shipping_carrier: Optional[str] = None
     seller_paid: Optional[int] = None
     notes: Optional[str] = None
+    # Allow updating buyer contact in case of typo
+    buyer_name: Optional[str] = None
+    buyer_phone: Optional[str] = None
+    buyer_whatsapp: Optional[str] = None
+    buyer_email: Optional[str] = None
 
 
 class OrderOut(BaseModel):
     id: int
     order_number: str
-    buyer_id: int
+    buyer_id: Optional[int] = None
+    buyer_name: Optional[str] = None
+    buyer_phone: Optional[str] = None
+    buyer_whatsapp: Optional[str] = None
+    buyer_email: Optional[str] = None
     item_id: int
     amount: Decimal
     commission_amount: Decimal
@@ -41,12 +55,11 @@ class OrderOut(BaseModel):
     seller_paid: int
     seller_paid_at: Optional[datetime]
     notes: Optional[str]
+    status_changed_at: Optional[datetime] = None
     created_at: datetime
     updated_at: Optional[datetime]
 
-    # Enriched fields (joined at query time)
-    buyer_name: Optional[str] = None
-    buyer_phone: Optional[str] = None
+    # Enriched from item/seller
     item_title: Optional[str] = None
     item_sku: Optional[str] = None
     seller_id: Optional[int] = None

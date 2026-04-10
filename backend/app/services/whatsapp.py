@@ -54,9 +54,13 @@ TEMPLATES = {
         "¡Que lo disfrutes mucho, {name}! 💕"
     ),
     "buyer_order_delivered": (
-        "¡Esperamos que tu artículo haya llegado perfecto, {name}! 🎀 "
-        "¿Cómo te fue con *{item_title}*? Tu opinión nos ayuda mucho. "
-        "¡Gracias por ser parte de MommyBazar! 💖"
+        "¡Hola {name}! 🌸 Tu pedido *{item_title}* fue marcado como entregado. "
+        "Responde *SÍ* si lo recibiste correctamente, o escríbenos si tienes algún comentario. "
+        "Orden: *{order_number}* — ¡Gracias por confiar en MommyBazar! 💖"
+    ),
+    "buyer_order_closed": (
+        "¡Hola {name}! 🌸 Tu pedido *{order_number}* ({item_title}) ha sido cerrado exitosamente. "
+        "¡Gracias por tu compra! Esperamos verte de nuevo en MommyBazar. 💕"
     ),
     "buyer_delivery_confirm": (
         "Hola {name} 🌸 Solo queremos confirmar que recibiste tu pedido "
@@ -85,10 +89,11 @@ TEMPLATES = {
 # WhatsApp Business label names per order status (requires WA Business API)
 ORDER_STATUS_LABELS = {
     "pending_payment": "💳 Pago pendiente",
-    "paid":            "✅ Pagado",
-    "preparing":       "📦 En preparación",
+    "paid":            "✅ Compra realizada",
+    "preparing":       "📦 Preparando",
     "shipped":         "🚚 Enviado",
-    "delivered":       "🎀 Entregado",
+    "delivered":       "✅ Confirmado",
+    "closed":          "🔒 Cerrado",
     "cancelled":       "❌ Cancelado",
     "refunded":        "🔄 Reembolsado",
 }
@@ -154,8 +159,13 @@ class WhatsAppService:
         return self.send_template(phone, "buyer_order_shipped", name=name, item_title=item_title,
                                   order_number=order_number, tracking_number=tracking_number, carrier=carrier)
 
-    def notify_buyer_order_delivered(self, phone, name, item_title):
-        return self.send_template(phone, "buyer_order_delivered", name=name, item_title=item_title)
+    def notify_buyer_order_delivered(self, phone, name, item_title, order_number):
+        return self.send_template(phone, "buyer_order_delivered", name=name,
+                                  item_title=item_title, order_number=order_number)
+
+    def notify_buyer_order_closed(self, phone, name, item_title, order_number):
+        return self.send_template(phone, "buyer_order_closed", name=name,
+                                  item_title=item_title, order_number=order_number)
 
     def notify_buyer_delivery_confirm(self, phone, name, order_number, item_title):
         return self.send_template(phone, "buyer_delivery_confirm", name=name,
