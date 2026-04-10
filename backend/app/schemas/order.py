@@ -44,4 +44,13 @@ class OrderOut(BaseModel):
     created_at: datetime
     updated_at: Optional[datetime]
 
+    # Enriched fields (joined at query time)
+    buyer_name: Optional[str] = None
+    buyer_phone: Optional[str] = None
+    item_title: Optional[str] = None
+    item_sku: Optional[str] = None
+    seller_id: Optional[int] = None
+    seller_name: Optional[str] = None
+    seller_phone: Optional[str] = None
+
     model_config = {"from_attributes": True}

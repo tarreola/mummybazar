@@ -1,12 +1,14 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   Table, Button, Modal, Form, Input, Select, Space, Typography,
-  Tag, Card, Row, Col, message, Divider, Tabs, Checkbox, Alert,
+  Tag, Card, Row, Col, message, Divider, Alert, Tabs,
+  Collapse, Tooltip,
 } from 'antd'
 import {
   SendOutlined, WhatsAppOutlined, NotificationOutlined,
-  WarningOutlined, TeamOutlined, UserOutlined,
+  WarningOutlined, TeamOutlined, UserOutlined, MessageOutlined,
+  EyeOutlined, ShoppingOutlined, CopyOutlined,
 } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import dayjs from 'dayjs'
@@ -14,38 +16,161 @@ import { getMessages, sendMessage, getSellers, getBuyers } from '../api/client'
 import api from '../api/client'
 import type { WhatsAppMessage, Seller, Buyer } from '../types'
 
-const { Title, Text } = Typography
+const { Title, Text, Paragraph } = Typography
 const { Option } = Select
 const { TextArea } = Input
 
-const TEMPLATES = [
-  { key: 'seller_received', label: 'Artículo recibido', audience: 'seller' },
-  { key: 'seller_listed', label: 'Artículo publicado', audience: 'seller' },
-  { key: 'seller_sold', label: 'Artículo vendido', audience: 'seller' },
-  { key: 'buyer_confirmed', label: 'Pedido confirmado', audience: 'buyer' },
-  { key: 'buyer_shipped', label: 'Pedido enviado', audience: 'buyer' },
-  { key: 'buyer_delivered', label: 'Pedido entregado', audience: 'buyer' },
+// ── Status labels map (from backend) ─────────────────────────────────────────
+const ORDER_STATUS_LABELS: Record<string, string> = {
+  pending_payment: '💳 Pago pendiente',
+  paid:            '✅ Pagado',
+  preparing:       '📦 En preparación',
+  shipped:         '🚚 Enviado',
+  delivered:       '🎀 Entregado',
+  cancelled:       '❌ Cancelado',
+  refunded:        '🔄 Reembolsado',
+}
+
+// ── Template groups definition (mirrors backend) ──────────────────────────────
+interface TemplateGroup {
+  key: string
+  label: string
+  audience: 'seller' | 'buyer' | 'any'
+  variables: string[]     // variable names needed for preview
+  description: string
+}
+
+const TEMPLATE_GROUPS: TemplateGroup[] = [
+  // Seller
+  { key: 'seller_welcome',       label: '👋 Bienvenida a vendedora',    audience: 'seller', variables: ['name'],                               description: 'Primera vez que se registra una vendedora' },
+  { key: 'seller_item_received', label: '📥 Artículo recibido',          audience: 'seller', variables: ['name', 'item_title', 'sku'],           description: 'Cuando el bazar recibe un artículo' },
+  { key: 'seller_item_listed',   label: '🟢 Artículo publicado',         audience: 'seller', variables: ['name', 'item_title', 'selling_price'], description: 'Cuando el artículo queda publicado' },
+  { key: 'seller_item_sold',     label: '🥳 Artículo vendido',           audience: 'seller', variables: ['name', 'item_title', 'seller_payout'], description: 'Cuando alguien compra el artículo' },
+  { key: 'seller_payout_sent',   label: '💸 Pago realizado',             audience: 'seller', variables: ['name', 'item_title', 'amount'],        description: 'Cuando se transfiere el pago a la vendedora' },
+  // Buyer
+  { key: 'buyer_welcome',           label: '👋 Bienvenida a compradora',  audience: 'buyer', variables: ['name'],                                                description: 'Primera vez que se registra una compradora' },
+  { key: 'buyer_order_confirmed',   label: '✅ Pedido confirmado',         audience: 'buyer', variables: ['name', 'item_title', 'order_number', 'amount'],        description: 'Auto: al crear una orden' },
+  { key: 'buyer_order_shipped',     label: '🚚 Pedido enviado',            audience: 'buyer', variables: ['name', 'item_title', 'order_number', 'tracking_number', 'carrier'], description: 'Auto: al marcar como enviado' },
+  { key: 'buyer_order_delivered',   label: '🎀 Pedido entregado',          audience: 'buyer', variables: ['name', 'item_title'],                                 description: 'Auto: al marcar como entregado' },
+  { key: 'buyer_delivery_confirm',  label: '❓ Confirmar recepción',        audience: 'buyer', variables: ['name', 'order_number', 'item_title'],                 description: 'Pregunta al cliente si recibió su pedido' },
 ]
 
+const SAMPLE_VARS: Record<string, string> = {
+  name: 'María',
+  item_title: 'Conjunto floral 3-6m Zara',
+  sku: 'MB-2024-00123',
+  selling_price: '350',
+  seller_payout: '245',
+  amount: '350',
+  order_number: 'ORD-2024-00001',
+  tracking_number: '1234567890',
+  carrier: 'Estafeta',
+  promo_items: '• Conjunto floral 3-6m — $350 MXN\n• Carriola Graco — $1,200 MXN\n',
+  body: 'Tenemos una promoción especial solo para ti.',
+  count: '2',
+  days: '30',
+  titles: '*Conjunto floral 3-6m* y *Carriola Graco*',
+}
+
+// ── Template card (with preview) ──────────────────────────────────────────────
+function TemplateCard({ tpl, onUse }: { tpl: TemplateGroup; onUse: (key: string) => void }) {
+  const [preview, setPreview] = useState('')
+  const [loading, setLoading] = useState(false)
+
+  const loadPreview = async () => {
+    if (preview) return
+    setLoading(true)
+    try {
+      const vars = Object.fromEntries(tpl.variables.map(v => [v, SAMPLE_VARS[v] || `{${v}}`]))
+      const res = await api.post('/whatsapp/template-preview', { template_key: tpl.key, variables: vars })
+      setPreview(res.data.rendered)
+    } catch { setPreview('Error al cargar preview') }
+    setLoading(false)
+  }
+
+  const copy = () => { navigator.clipboard.writeText(preview); message.success('Copiado') }
+
+  return (
+    <Card
+      size="small"
+      style={{ borderRadius: 10, borderColor: '#ffe0f0', marginBottom: 8 }}
+      extra={
+        <Space size={4}>
+          <Tooltip title="Ver preview"><Button size="small" icon={<EyeOutlined />} onClick={loadPreview} loading={loading} /></Tooltip>
+          {preview && <Tooltip title="Copiar"><Button size="small" icon={<CopyOutlined />} onClick={copy} /></Tooltip>}
+          <Button size="small" type="primary" icon={<SendOutlined />}
+            style={{ background: '#25d366', borderColor: '#25d366' }}
+            onClick={() => onUse(tpl.key)}>
+            Usar
+          </Button>
+        </Space>
+      }
+    >
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+        <div style={{ flex: 1 }}>
+          <Text strong style={{ fontSize: 13 }}>{tpl.label}</Text>
+          <br />
+          <Text type="secondary" style={{ fontSize: 11 }}>{tpl.description}</Text>
+        </div>
+        <Tag color={tpl.audience === 'seller' ? 'pink' : 'purple'} style={{ fontSize: 10 }}>
+          {tpl.audience === 'seller' ? 'Vendedora' : 'Compradora'}
+        </Tag>
+      </div>
+      {preview && (
+        <div style={{
+          marginTop: 8, background: '#f6ffed', border: '1px solid #b7eb8f',
+          borderRadius: 8, padding: '8px 12px',
+          fontSize: 12, color: '#262626', whiteSpace: 'pre-wrap',
+          fontFamily: 'inherit',
+        }}>
+          {preview}
+        </div>
+      )}
+    </Card>
+  )
+}
+
+// ── Main component ────────────────────────────────────────────────────────────
 export default function WhatsAppHub() {
   const qc = useQueryClient()
   const [composeOpen, setComposeOpen] = useState(false)
   const [campaignOpen, setCampaignOpen] = useState(false)
+  const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null)
+  const [recipientType, setRecipientType] = useState<'seller' | 'buyer' | 'custom'>('buyer')
+  const [promoItems, setPromoItems] = useState<any[]>([])
   const [form] = Form.useForm()
   const [campaignForm] = Form.useForm()
-  const [recipientType, setRecipientType] = useState<'seller' | 'buyer' | 'custom'>('seller')
+  const [campaignType, setCampaignType] = useState<'promo' | 'general'>('general')
 
+  // ── Queries ──────────────────────────────────────────────────────────────────
   const { data: messages = [], isLoading } = useQuery<WhatsAppMessage[]>({
     queryKey: ['whatsapp-messages'],
     queryFn: () => getMessages().then(r => r.data),
     refetchInterval: 15_000,
   })
-  const { data: sellers = [] } = useQuery<Seller[]>({ queryKey: ['sellers'], queryFn: () => getSellers().then(r => r.data) })
-  const { data: buyers = [] } = useQuery<Buyer[]>({ queryKey: ['buyers'], queryFn: () => getBuyers().then(r => r.data) })
+  const { data: sellers = [] } = useQuery<Seller[]>({
+    queryKey: ['sellers'],
+    queryFn: () => getSellers().then(r => r.data),
+  })
+  const { data: buyers = [] } = useQuery<Buyer[]>({
+    queryKey: ['buyers'],
+    queryFn: () => getBuyers().then(r => r.data),
+  })
+  const { data: listedItems = [] } = useQuery({
+    queryKey: ['items', 'listed'],
+    queryFn: () => api.get('/items/?status=listed').then(r => r.data),
+    enabled: campaignOpen && campaignType === 'promo',
+  })
 
+  // ── Mutations ─────────────────────────────────────────────────────────────────
   const sendMutation = useMutation({
     mutationFn: (data: object) => sendMessage(data),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['whatsapp-messages'] }); setComposeOpen(false); form.resetFields(); message.success('Mensaje enviado') },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['whatsapp-messages'] })
+      setComposeOpen(false)
+      form.resetFields()
+      message.success('Mensaje enviado')
+    },
     onError: () => message.error('Error al enviar (revisa credenciales de Twilio)'),
   })
 
@@ -62,9 +187,17 @@ export default function WhatsAppHub() {
 
   const stagnantMutation = useMutation({
     mutationFn: () => api.post('/whatsapp/remind-stagnant?days=30'),
-    onSuccess: (res) => { message.success(`Recordatorios enviados a ${res.data.sellers_notified} vendedoras`) },
+    onSuccess: (res) => message.success(`Recordatorios enviados a ${res.data.sellers_notified} vendedoras`),
     onError: () => message.error('Error al enviar recordatorios'),
   })
+
+  // ── Handlers ──────────────────────────────────────────────────────────────────
+  const useTemplate = (key: string) => {
+    setSelectedTemplate(key)
+    const tpl = TEMPLATE_GROUPS.find(t => t.key === key)
+    if (tpl) setRecipientType(tpl.audience === 'seller' ? 'seller' : 'buyer')
+    setComposeOpen(true)
+  }
 
   const onSend = (values: any) => {
     let to_number = values.custom_number || ''
@@ -87,52 +220,71 @@ export default function WhatsAppHub() {
   const onCampaign = (values: any) => {
     campaignMutation.mutate({
       audience: values.audience,
-      body: values.body,
-      audience_ids: values.specific_ids?.length ? values.specific_ids : undefined,
+      body: values.body || '',
+      template_key: campaignType === 'promo' ? 'campaign_promo' : 'campaign_general',
+      promo_item_ids: campaignType === 'promo' ? values.promo_items : undefined,
+      audience_ids: undefined,
     })
   }
 
+  // Stats
   const outbound = messages.filter(m => m.direction === 'outbound').length
   const inbound = messages.filter(m => m.direction === 'inbound').length
+  const today = messages.filter(m => dayjs(m.created_at).isAfter(dayjs().startOf('day'))).length
 
+  // ── Table columns ─────────────────────────────────────────────────────────────
   const columns: ColumnsType<WhatsAppMessage> = [
     {
       title: 'Dir.', dataIndex: 'direction', width: 90,
-      render: v => <Tag color={v === 'outbound' ? 'blue' : 'green'}>{v === 'outbound' ? '→ Salida' : '← Entrada'}</Tag>,
+      render: v => <Tag color={v === 'outbound' ? 'blue' : 'green'}>{v === 'outbound' ? '↗ Salida' : '↙ Entrada'}</Tag>,
     },
     {
-      title: 'Tipo', dataIndex: 'message_type', width: 90,
-      render: v => <Tag>{v}</Tag>,
+      title: 'Tipo', dataIndex: 'message_type', width: 95,
+      render: v => <Tag color={v === 'marketing' ? 'purple' : v === 'template' ? 'cyan' : 'default'}>{v}</Tag>,
     },
-    { title: 'Número', dataIndex: 'to_number', width: 140, render: (v, r) => r.direction === 'inbound' ? (r as any).from_number : v },
-    { title: 'Mensaje', dataIndex: 'body', ellipsis: true },
-    { title: 'Estado', dataIndex: 'status', width: 90, render: v => v ? <Tag>{v}</Tag> : '—' },
-    { title: 'Fecha', dataIndex: 'created_at', width: 130, render: v => dayjs(v).format('DD/MM HH:mm') },
+    {
+      title: 'Número', width: 145,
+      render: (_, r: any) => {
+        const num = r.direction === 'inbound' ? r.from_number : r.to_number
+        return (
+          <a href={`https://wa.me/${num?.replace('+', '')}`} target="_blank" rel="noreferrer">
+            <WhatsAppOutlined style={{ color: '#25d366', marginRight: 4 }} />{num}
+          </a>
+        )
+      },
+    },
+    {
+      title: 'Mensaje', dataIndex: 'body', ellipsis: true,
+      render: v => <Text style={{ fontSize: 12 }}>{v}</Text>,
+    },
+    {
+      title: 'Estado', dataIndex: 'status', width: 85,
+      render: v => v ? <Tag style={{ fontSize: 11 }}>{v}</Tag> : '—',
+    },
+    {
+      title: 'Fecha', dataIndex: 'created_at', width: 115,
+      render: v => <Text type="secondary" style={{ fontSize: 11 }}>{dayjs(v).format('DD/MM HH:mm')}</Text>,
+    },
   ]
 
   return (
     <div>
+      {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
         <Title level={4} style={{ color: '#c41d7f', margin: 0 }}>
           <WhatsAppOutlined style={{ color: '#25d366', marginRight: 8 }} />WhatsApp Hub
         </Title>
-        <Space>
-          <Button
-            icon={<WarningOutlined />}
-            loading={stagnantMutation.isPending}
+        <Space wrap>
+          <Button icon={<WarningOutlined />} loading={stagnantMutation.isPending}
             onClick={() => stagnantMutation.mutate()}
-            style={{ borderColor: '#faad14', color: '#faad14' }}
-          >
+            style={{ borderColor: '#faad14', color: '#faad14' }}>
             Recordar inventario detenido
           </Button>
-          <Button
-            icon={<NotificationOutlined />}
-            onClick={() => setCampaignOpen(true)}
-            style={{ borderColor: '#722ed1', color: '#722ed1' }}
-          >
+          <Button icon={<NotificationOutlined />} onClick={() => setCampaignOpen(true)}
+            style={{ borderColor: '#722ed1', color: '#722ed1' }}>
             Campaña masiva
           </Button>
-          <Button type="primary" icon={<SendOutlined />} onClick={() => setComposeOpen(true)}
+          <Button type="primary" icon={<SendOutlined />} onClick={() => { setSelectedTemplate(null); setComposeOpen(true) }}
             style={{ background: '#25d366', borderColor: '#25d366' }}>
             Nuevo mensaje
           </Button>
@@ -140,35 +292,113 @@ export default function WhatsAppHub() {
       </div>
 
       {/* Stats */}
-      <Row gutter={12} style={{ marginBottom: 16 }}>
+      <Row gutter={[12, 12]} style={{ marginBottom: 16 }}>
         {[
-          { label: 'Enviados', value: outbound, color: '#096dd9' },
+          { label: 'Enviados hoy', value: today, color: '#25d366' },
+          { label: 'Total enviados', value: outbound, color: '#096dd9' },
           { label: 'Recibidos', value: inbound, color: '#389e0d' },
-          { label: 'Total', value: messages.length, color: '#595959' },
+          { label: 'Total mensajes', value: messages.length, color: '#595959' },
         ].map(s => (
           <Col key={s.label}>
-            <Card size="small" style={{ borderRadius: 8, borderColor: '#ffe0f0' }}>
-              <Text type="secondary">{s.label}: </Text>
-              <Text strong style={{ color: s.color }}>{s.value}</Text>
+            <Card size="small" style={{ borderRadius: 8, borderColor: '#ffe0f0', minWidth: 130 }}>
+              <Text type="secondary" style={{ fontSize: 12 }}>{s.label}</Text>
+              <div><Text strong style={{ color: s.color, fontSize: 22 }}>{s.value}</Text></div>
             </Card>
           </Col>
         ))}
       </Row>
 
-      <Table dataSource={messages} columns={columns} rowKey="id" loading={isLoading}
-        size="small" pagination={{ pageSize: 30 }} />
+      {/* Labels info card */}
+      <Card
+        size="small"
+        title={<span><Tag color="green" style={{ marginRight: 4 }}>Labels WhatsApp</Tag> por estado de orden</span>}
+        style={{ borderRadius: 10, borderColor: '#ffe0f0', marginBottom: 16 }}
+      >
+        <Row gutter={[8, 4]}>
+          {Object.entries(ORDER_STATUS_LABELS).map(([status, label]) => (
+            <Col key={status} xs={12} sm={8} md={6}>
+              <Tag style={{ fontSize: 12, marginBottom: 4 }}>{label}</Tag>
+            </Col>
+          ))}
+        </Row>
+        <Text type="secondary" style={{ fontSize: 11, marginTop: 4, display: 'block' }}>
+          Los labels se aplican automáticamente en WhatsApp Business al cambiar el estado de cada orden.
+        </Text>
+      </Card>
 
-      {/* Compose modal */}
+      <Tabs
+        defaultActiveKey="log"
+        items={[
+          {
+            key: 'log',
+            label: <span><MessageOutlined />Historial ({messages.length})</span>,
+            children: (
+              <Table dataSource={messages} columns={columns} rowKey="id" loading={isLoading}
+                size="small" pagination={{ pageSize: 30 }} />
+            ),
+          },
+          {
+            key: 'templates',
+            label: <span><EyeOutlined />Templates</span>,
+            children: (
+              <div>
+                <Alert
+                  message="Estos mensajes se envían automáticamente al cambiar estados de órdenes. También puedes enviarlos manualmente desde aquí."
+                  type="info" showIcon style={{ marginBottom: 16 }}
+                />
+                <Collapse
+                  defaultActiveKey={['seller', 'buyer', 'campaign']}
+                  items={[
+                    {
+                      key: 'seller',
+                      label: <span><TeamOutlined style={{ color: '#c41d7f', marginRight: 6 }} />Para Vendedoras</span>,
+                      children: TEMPLATE_GROUPS.filter(t => t.audience === 'seller').map(t => (
+                        <TemplateCard key={t.key} tpl={t} onUse={useTemplate} />
+                      )),
+                    },
+                    {
+                      key: 'buyer',
+                      label: <span><UserOutlined style={{ color: '#722ed1', marginRight: 6 }} />Para Compradoras</span>,
+                      children: TEMPLATE_GROUPS.filter(t => t.audience === 'buyer').map(t => (
+                        <TemplateCard key={t.key} tpl={t} onUse={useTemplate} />
+                      )),
+                    },
+                    {
+                      key: 'campaign',
+                      label: <span><NotificationOutlined style={{ color: '#fa8c16', marginRight: 6 }} />Campaña / Recordatorio</span>,
+                      children: (
+                        <div>
+                          <Alert
+                            message='Usa el botón "Campaña masiva" de la barra superior para enviar a múltiples contactos.'
+                            type="warning" showIcon style={{ marginBottom: 8 }}
+                          />
+                          {TEMPLATE_GROUPS.filter(t => t.audience === 'any').map(t => (
+                            <TemplateCard key={t.key} tpl={t} onUse={useTemplate} />
+                          ))}
+                        </div>
+                      ),
+                    },
+                  ]}
+                />
+              </div>
+            ),
+          },
+        ]}
+      />
+
+      {/* ── Compose modal ─────────────────────────────────────────────────────── */}
       <Modal open={composeOpen} title="Nuevo mensaje WhatsApp"
-        onCancel={() => setComposeOpen(false)} footer={null} width={500}>
+        onCancel={() => setComposeOpen(false)} footer={null} width={520}>
         <Form form={form} layout="vertical" onFinish={onSend}>
-          <Form.Item label="Tipo de destinatario">
-            <Select value={recipientType} onChange={v => { setRecipientType(v); form.resetFields(['recipient_id', 'custom_number']) }}>
+          <Form.Item label="Destinatario">
+            <Select value={recipientType}
+              onChange={v => { setRecipientType(v); form.resetFields(['recipient_id', 'custom_number']) }}>
               <Option value="seller">Vendedora registrada</Option>
               <Option value="buyer">Compradora registrada</Option>
               <Option value="custom">Número personalizado</Option>
             </Select>
           </Form.Item>
+
           {recipientType === 'seller' && (
             <Form.Item name="recipient_id" label="Vendedora" rules={[{ required: true }]}>
               <Select showSearch optionFilterProp="label"
@@ -186,18 +416,31 @@ export default function WhatsAppHub() {
               <Input />
             </Form.Item>
           )}
-          <Divider style={{ margin: '8px 0' }} />
-          <Text type="secondary" style={{ fontSize: 12 }}>Plantillas rápidas:</Text>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, margin: '6px 0 12px' }}>
-            {TEMPLATES.filter(t => t.audience === recipientType || recipientType === 'custom').map(t => (
-              <Tag key={t.key} style={{ cursor: 'pointer', borderColor: '#c41d7f', color: '#c41d7f' }}
-                onClick={() => form.setFieldValue('body', `[${t.label}] `)}>
-                {t.label}
-              </Tag>
-            ))}
+
+          <Divider style={{ margin: '8px 0' }}>
+            <Text type="secondary" style={{ fontSize: 12 }}>Plantillas rápidas</Text>
+          </Divider>
+
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
+            {TEMPLATE_GROUPS
+              .filter(t => t.audience === recipientType || recipientType === 'custom')
+              .map(t => (
+                <Tag key={t.key}
+                  style={{ cursor: 'pointer', borderColor: '#c41d7f', color: '#c41d7f', fontSize: 11 }}
+                  onClick={() => {
+                    // Fill body with template text using sample vars
+                    const vars = Object.fromEntries(t.variables.map(v => [v, SAMPLE_VARS[v] || `{${v}}`]))
+                    api.post('/whatsapp/template-preview', { template_key: t.key, variables: vars })
+                      .then(r => form.setFieldValue('body', r.data.rendered))
+                      .catch(() => form.setFieldValue('body', `[${t.label}]`))
+                  }}>
+                  {t.label}
+                </Tag>
+              ))}
           </div>
+
           <Form.Item name="body" label="Mensaje" rules={[{ required: true }]}>
-            <TextArea rows={5} placeholder="Escribe tu mensaje aquí..." />
+            <TextArea rows={6} placeholder="Escribe tu mensaje aquí, o selecciona una plantilla arriba…" />
           </Form.Item>
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
             <Button onClick={() => setComposeOpen(false)}>Cancelar</Button>
@@ -207,25 +450,65 @@ export default function WhatsAppHub() {
         </Form>
       </Modal>
 
-      {/* Campaign modal */}
-      <Modal open={campaignOpen} title={<span><NotificationOutlined style={{ color: '#722ed1', marginRight: 6 }} />Campaña masiva</span>}
-        onCancel={() => setCampaignOpen(false)} footer={null} width={520}>
+      {/* ── Campaign modal ────────────────────────────────────────────────────── */}
+      <Modal open={campaignOpen}
+        title={<span><NotificationOutlined style={{ color: '#722ed1', marginRight: 6 }} />Campaña masiva</span>}
+        onCancel={() => { setCampaignOpen(false); campaignForm.resetFields() }}
+        footer={null} width={560}>
+
         <Alert
-          message="Los mensajes se enviarán a todos los contactos del grupo seleccionado."
+          message="El mensaje se personalizará con el nombre de cada destinataria automáticamente."
           type="info" showIcon style={{ marginBottom: 16 }}
         />
+
         <Form form={campaignForm} layout="vertical" onFinish={onCampaign}>
           <Form.Item name="audience" label="Audiencia" rules={[{ required: true }]}>
             <Select>
-              <Option value="all_sellers"><TeamOutlined style={{ color: '#c41d7f', marginRight: 4 }} />Todas las vendedoras ({sellers.length})</Option>
-              <Option value="all_buyers"><UserOutlined style={{ color: '#722ed1', marginRight: 4 }} />Todas las compradoras ({buyers.length})</Option>
+              <Option value="all_sellers">
+                <TeamOutlined style={{ color: '#c41d7f', marginRight: 6 }} />
+                Todas las vendedoras ({sellers.length})
+              </Option>
+              <Option value="all_buyers">
+                <UserOutlined style={{ color: '#722ed1', marginRight: 6 }} />
+                Todas las compradoras ({buyers.length})
+              </Option>
             </Select>
           </Form.Item>
-          <Form.Item name="body" label="Mensaje de la campaña" rules={[{ required: true }]}>
-            <TextArea rows={6} placeholder="Hola {nombre}! 🌸 Escribe tu mensaje aquí..." />
+
+          <Form.Item label="Tipo de campaña">
+            <Select value={campaignType} onChange={v => setCampaignType(v as any)}>
+              <Option value="general">
+                <MessageOutlined style={{ marginRight: 6 }} />Mensaje general personalizado
+              </Option>
+              <Option value="promo">
+                <ShoppingOutlined style={{ color: '#c41d7f', marginRight: 6 }} />Promoción con artículos del inventario
+              </Option>
+            </Select>
           </Form.Item>
+
+          {campaignType === 'promo' ? (
+            <Form.Item name="promo_items" label="Artículos en promoción" rules={[{ required: true, message: 'Selecciona al menos un artículo' }]}>
+              <Select
+                mode="multiple"
+                showSearch
+                optionFilterProp="label"
+                placeholder="Busca y selecciona artículos publicados…"
+                options={(listedItems as any[]).map((i: any) => ({
+                  value: i.id,
+                  label: `${i.sku} — ${i.title} ($${Number(i.selling_price).toLocaleString('es-MX')})`,
+                }))}
+              />
+            </Form.Item>
+          ) : (
+            <Form.Item name="body" label="Mensaje" rules={[{ required: true }]}
+              extra='Usa {nombre} para personalizar con el nombre de cada destinataria.'>
+              <TextArea rows={6}
+                placeholder={'Hola {nombre}! 🌸 Tenemos novedades para ti en MommyBazar...'} />
+            </Form.Item>
+          )}
+
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-            <Button onClick={() => setCampaignOpen(false)}>Cancelar</Button>
+            <Button onClick={() => { setCampaignOpen(false); campaignForm.resetFields() }}>Cancelar</Button>
             <Button type="primary" htmlType="submit" icon={<NotificationOutlined />}
               loading={campaignMutation.isPending}
               style={{ background: '#722ed1', borderColor: '#722ed1' }}>

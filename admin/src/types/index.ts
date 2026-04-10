@@ -148,6 +148,14 @@ export interface Order {
   notes?: string
   created_at: string
   updated_at?: string
+  // Enriched
+  buyer_name?: string
+  buyer_phone?: string
+  item_title?: string
+  item_sku?: string
+  seller_id?: number
+  seller_name?: string
+  seller_phone?: string
 }
 
 export interface OrderCreate {

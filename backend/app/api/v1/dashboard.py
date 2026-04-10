@@ -1,8 +1,9 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import func, desc
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone, timedelta, date
 from decimal import Decimal
+from typing import Optional
 
 from app.core.database import get_db
 from app.api.deps import get_current_user
@@ -16,33 +17,109 @@ router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 PAID_STATUSES = [OrderStatus.PAID, OrderStatus.PREPARING, OrderStatus.SHIPPED, OrderStatus.DELIVERED]
 
 
-@router.get("/summary")
-def get_summary(db: Session = Depends(get_db), _=Depends(get_current_user)):
-    now = datetime.now(timezone.utc)
-    month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+def _period_bounds(period: str, now: datetime):
+    """Return (current_start, current_end, prev_start, prev_end) for WTD/MTD/QTD/YTD."""
+    if period == "WTD":
+        # Week starts Monday
+        days_since_monday = now.weekday()
+        cur_start = (now - timedelta(days=days_since_monday)).replace(hour=0, minute=0, second=0, microsecond=0)
+        prev_start = cur_start - timedelta(weeks=1)
+        prev_end = cur_start
+        return cur_start, now, prev_start, prev_end
 
-    # Inventory counts by status
+    elif period == "MTD":
+        cur_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        # Same day range last month
+        if cur_start.month == 1:
+            prev_start = cur_start.replace(year=cur_start.year - 1, month=12)
+        else:
+            prev_start = cur_start.replace(month=cur_start.month - 1)
+        prev_end = cur_start
+        return cur_start, now, prev_start, prev_end
+
+    elif period == "QTD":
+        q_month = ((now.month - 1) // 3) * 3 + 1
+        cur_start = now.replace(month=q_month, day=1, hour=0, minute=0, second=0, microsecond=0)
+        prev_start = cur_start - timedelta(days=91)
+        prev_start = prev_start.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        prev_end = cur_start
+        return cur_start, now, prev_start, prev_end
+
+    elif period == "YTD":
+        cur_start = now.replace(month=1, day=1, hour=0, minute=0, second=0, microsecond=0)
+        prev_start = cur_start.replace(year=cur_start.year - 1)
+        prev_end = cur_start
+        return cur_start, now, prev_start, prev_end
+
+    else:
+        # Default: MTD
+        cur_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        if cur_start.month == 1:
+            prev_start = cur_start.replace(year=cur_start.year - 1, month=12)
+        else:
+            prev_start = cur_start.replace(month=cur_start.month - 1)
+        return cur_start, now, prev_start, cur_start
+
+
+def _revenue_query(db: Session, date_from: datetime, date_to: datetime):
+    row = db.query(
+        func.sum(Order.amount),
+        func.sum(Order.commission_amount),
+        func.count(Order.id),
+    ).filter(
+        Order.status.in_(PAID_STATUSES),
+        Order.created_at >= date_from,
+        Order.created_at <= date_to,
+    ).one()
+    return float(row[0] or 0), float(row[1] or 0), row[2] or 0
+
+
+@router.get("/summary")
+def get_summary(
+    period: str = Query("MTD", description="WTD | MTD | QTD | YTD | CUSTOM"),
+    date_from: Optional[str] = Query(None, description="ISO date, only for CUSTOM"),
+    date_to: Optional[str] = Query(None, description="ISO date, only for CUSTOM"),
+    db: Session = Depends(get_db),
+    _=Depends(get_current_user),
+):
+    now = datetime.now(timezone.utc)
+
+    if period == "CUSTOM" and date_from and date_to:
+        cur_start = datetime.fromisoformat(date_from).replace(tzinfo=timezone.utc)
+        cur_end = datetime.fromisoformat(date_to).replace(tzinfo=timezone.utc)
+        delta = cur_end - cur_start
+        prev_start = cur_start - delta
+        prev_end = cur_start
+    else:
+        cur_start, cur_end, prev_start, prev_end = _period_bounds(period, now)
+
+    # Inventory counts by status (always current, not filtered by date)
     inventory = {}
     for status in ItemStatus:
         inventory[status.value] = db.query(func.count(Item.id)).filter(Item.status == status).scalar()
 
-    # Revenue
-    def revenue_query(extra_filters=None):
-        q = db.query(func.sum(Order.amount), func.sum(Order.commission_amount), func.count(Order.id))
-        q = q.filter(Order.status.in_(PAID_STATUSES))
-        if extra_filters:
-            for f in extra_filters:
-                q = q.filter(f)
-        return q.one()
+    # Revenue — current period
+    cur_gross, cur_commission, cur_orders = _revenue_query(db, cur_start, cur_end)
 
-    total_gross, total_commission, total_orders = revenue_query()
-    month_gross, month_commission, month_orders = revenue_query([Order.created_at >= month_start])
+    # Revenue — previous period (for comparison)
+    prev_gross, prev_commission, prev_orders = _revenue_query(db, prev_start, prev_end)
 
-    # Units sold this month
-    units_sold_month = db.query(func.count(Order.id)).filter(
+    # Units sold — current period
+    units_sold = db.query(func.count(Order.id)).filter(
         Order.status.in_(PAID_STATUSES),
-        Order.created_at >= month_start
-    ).scalar()
+        Order.created_at >= cur_start,
+        Order.created_at <= cur_end,
+    ).scalar() or 0
+
+    # Units sold — previous period
+    units_sold_prev = db.query(func.count(Order.id)).filter(
+        Order.status.in_(PAID_STATUSES),
+        Order.created_at >= prev_start,
+        Order.created_at <= prev_end,
+    ).scalar() or 0
+
+    # All-time totals
+    all_gross, all_commission, all_orders_total = _revenue_query(db, datetime(2000, 1, 1, tzinfo=timezone.utc), now)
 
     # Pending seller payouts
     pending_payouts = db.query(func.sum(Order.seller_payout_amount)).filter(
@@ -57,16 +134,44 @@ def get_summary(db: Session = Depends(get_db), _=Depends(get_current_user)):
         Item.listed_at <= stagnant_threshold,
     ).scalar()
 
+    def pct_delta(cur, prev):
+        if prev == 0:
+            return None
+        return round((cur - prev) / prev * 100, 1)
+
     return {
+        "period": period,
+        "period_label": {
+            "cur_start": cur_start.isoformat(),
+            "cur_end": cur_end.isoformat(),
+            "prev_start": prev_start.isoformat(),
+            "prev_end": prev_end.isoformat(),
+        },
         "inventory": inventory,
         "revenue": {
-            "total_gross": float(total_gross or 0),
-            "total_commission": float(total_commission or 0),
-            "total_orders": total_orders or 0,
-            "month_gross": float(month_gross or 0),
-            "month_commission": float(month_commission or 0),
-            "month_orders": month_orders or 0,
-            "units_sold_month": units_sold_month or 0,
+            # Current period
+            "gross": cur_gross,
+            "commission": cur_commission,
+            "orders": cur_orders,
+            "units_sold": units_sold,
+            # Previous period
+            "prev_gross": prev_gross,
+            "prev_commission": prev_commission,
+            "prev_orders": prev_orders,
+            "prev_units_sold": units_sold_prev,
+            # Deltas %
+            "delta_gross": pct_delta(cur_gross, prev_gross),
+            "delta_commission": pct_delta(cur_commission, prev_commission),
+            "delta_orders": pct_delta(cur_orders, prev_orders),
+            "delta_units": pct_delta(units_sold, units_sold_prev),
+            # All-time (for totals row)
+            "total_gross": all_gross,
+            "total_commission": all_commission,
+            "total_orders": all_orders_total,
+            # Legacy aliases (keep UI compatible)
+            "month_gross": cur_gross,
+            "month_commission": cur_commission,
+            "units_sold_month": units_sold,
         },
         "pending_seller_payouts": float(pending_payouts),
         "stagnant_items_count": stagnant_count or 0,
@@ -104,12 +209,26 @@ def revenue_by_month(months: int = 6, db: Session = Depends(get_db), _=Depends(g
 
 
 @router.get("/top-sellers")
-def top_sellers(limit: int = 5, db: Session = Depends(get_db), _=Depends(get_current_user)):
+def top_sellers(
+    limit: int = 5,
+    period: str = Query("MTD"),
+    date_from: Optional[str] = Query(None),
+    date_to: Optional[str] = Query(None),
+    db: Session = Depends(get_db),
+    _=Depends(get_current_user),
+):
+    now = datetime.now(timezone.utc)
+    if period == "CUSTOM" and date_from and date_to:
+        cur_start = datetime.fromisoformat(date_from).replace(tzinfo=timezone.utc)
+        cur_end = datetime.fromisoformat(date_to).replace(tzinfo=timezone.utc)
+    else:
+        cur_start, cur_end, _, _ = _period_bounds(period, now)
+
     rows = (
         db.query(Seller, func.count(Order.id).label("sales"), func.sum(Order.amount).label("revenue"))
         .join(Item, Item.seller_id == Seller.id)
         .join(Order, Order.item_id == Item.id)
-        .filter(Order.status.in_(PAID_STATUSES))
+        .filter(Order.status.in_(PAID_STATUSES), Order.created_at >= cur_start, Order.created_at <= cur_end)
         .group_by(Seller.id)
         .order_by(desc("sales"))
         .limit(limit)
@@ -122,11 +241,25 @@ def top_sellers(limit: int = 5, db: Session = Depends(get_db), _=Depends(get_cur
 
 
 @router.get("/top-buyers")
-def top_buyers(limit: int = 5, db: Session = Depends(get_db), _=Depends(get_current_user)):
+def top_buyers(
+    limit: int = 5,
+    period: str = Query("MTD"),
+    date_from: Optional[str] = Query(None),
+    date_to: Optional[str] = Query(None),
+    db: Session = Depends(get_db),
+    _=Depends(get_current_user),
+):
+    now = datetime.now(timezone.utc)
+    if period == "CUSTOM" and date_from and date_to:
+        cur_start = datetime.fromisoformat(date_from).replace(tzinfo=timezone.utc)
+        cur_end = datetime.fromisoformat(date_to).replace(tzinfo=timezone.utc)
+    else:
+        cur_start, cur_end, _, _ = _period_bounds(period, now)
+
     rows = (
         db.query(Buyer, func.count(Order.id).label("purchases"), func.sum(Order.amount).label("spent"))
         .join(Order, Order.buyer_id == Buyer.id)
-        .filter(Order.status.in_(PAID_STATUSES))
+        .filter(Order.status.in_(PAID_STATUSES), Order.created_at >= cur_start, Order.created_at <= cur_end)
         .group_by(Buyer.id)
         .order_by(desc("purchases"))
         .limit(limit)
@@ -139,11 +272,24 @@ def top_buyers(limit: int = 5, db: Session = Depends(get_db), _=Depends(get_curr
 
 
 @router.get("/sales-by-category")
-def sales_by_category(db: Session = Depends(get_db), _=Depends(get_current_user)):
+def sales_by_category(
+    period: str = Query("MTD"),
+    date_from: Optional[str] = Query(None),
+    date_to: Optional[str] = Query(None),
+    db: Session = Depends(get_db),
+    _=Depends(get_current_user),
+):
+    now = datetime.now(timezone.utc)
+    if period == "CUSTOM" and date_from and date_to:
+        cur_start = datetime.fromisoformat(date_from).replace(tzinfo=timezone.utc)
+        cur_end = datetime.fromisoformat(date_to).replace(tzinfo=timezone.utc)
+    else:
+        cur_start, cur_end, _, _ = _period_bounds(period, now)
+
     rows = (
         db.query(Item.category, func.count(Order.id).label("units"), func.sum(Order.amount).label("revenue"))
         .join(Order, Order.item_id == Item.id)
-        .filter(Order.status.in_(PAID_STATUSES))
+        .filter(Order.status.in_(PAID_STATUSES), Order.created_at >= cur_start, Order.created_at <= cur_end)
         .group_by(Item.category)
         .order_by(desc("units"))
         .all()

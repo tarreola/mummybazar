@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   Table, Tag, Button, Modal, Form, Input, Select, InputNumber,
   Space, Typography, Tooltip, message, Drawer, Descriptions, Popconfirm,
-  Upload, Image, Divider,
+  Upload, Image, Divider, Progress,
 } from 'antd'
 import {
   PlusOutlined, EditOutlined, StopOutlined, LinkOutlined,
@@ -14,6 +14,8 @@ import type { UploadFile } from 'antd/es/upload'
 import dayjs from 'dayjs'
 import { getItems, createItem, updateItem, getSellers, uploadItemImage, deleteItemImage } from '../api/client'
 import type { Item, ItemStatus, Seller } from '../types'
+import { enhanceImage } from '../hooks/useImageEnhance'
+import type { EnhanceStatus } from '../hooks/useImageEnhance'
 
 const { Title, Text } = Typography
 const { Option } = Select
@@ -53,7 +55,50 @@ export default function Inventory() {
   const [drawerItem, setDrawerItem] = useState<Item | null>(null)
   const [fileList, setFileList] = useState<UploadFile[]>([])
   const [uploadingImages, setUploadingImages] = useState(false)
+  const [enhancing, setEnhancing] = useState(false)
+  const [enhanceStatus, setEnhanceStatus] = useState<EnhanceStatus>('idle')
+  const [enhanceProgress, setEnhanceProgress] = useState(0)   // 0-100 across all queued files
   const [form] = Form.useForm()
+
+  // Process a batch of raw files through the AI pipeline
+  const processFiles = async (rawFiles: File[]): Promise<UploadFile[]> => {
+    if (rawFiles.length === 0) return []
+    setEnhancing(true)
+    setEnhanceProgress(0)
+    const results: UploadFile[] = []
+    for (let i = 0; i < rawFiles.length; i++) {
+      const raw = rawFiles[i]
+      try {
+        setEnhanceStatus('removing-bg')
+        const { file: enhanced, preview } = await enhanceImage(raw, setEnhanceStatus)
+        results.push({
+          uid: `enhanced-${Date.now()}-${i}`,
+          name: enhanced.name,
+          status: 'done',
+          originFileObj: enhanced as any,
+          url: preview,
+          thumbUrl: preview,
+        })
+      } catch (err) {
+        console.error('Enhancement failed for', raw.name, err)
+        // Fallback: use original file without processing
+        const fallbackUrl = URL.createObjectURL(raw)
+        results.push({
+          uid: `raw-${Date.now()}-${i}`,
+          name: raw.name,
+          status: 'done',
+          originFileObj: raw as any,
+          url: fallbackUrl,
+          thumbUrl: fallbackUrl,
+        })
+        message.warning(`No se pudo procesar "${raw.name}", se usará la foto original.`)
+      }
+      setEnhanceProgress(Math.round(((i + 1) / rawFiles.length) * 100))
+    }
+    setEnhancing(false)
+    setEnhanceStatus('done')
+    return results
+  }
 
   const { data: items = [], isLoading } = useQuery<Item[]>({
     queryKey: ['items', filterStatus, filterCategory],
@@ -387,29 +432,58 @@ export default function Inventory() {
             </div>
           )}
 
-          {/* New photo picker */}
+          {/* New photo picker — AI enhanced */}
           {maxNewPhotos > 0 && (
-            <Upload
-              listType="picture-card"
-              fileList={fileList}
-              beforeUpload={() => false}
-              accept="image/*"
-              multiple
-              onChange={({ fileList: fl }) => setFileList(fl.slice(0, maxNewPhotos))}
-              style={{ width: '100%' }}
-            >
-              {fileList.length < maxNewPhotos && (
-                <div>
-                  <CameraOutlined style={{ fontSize: 22, color: '#c41d7f' }} />
-                  <div style={{ marginTop: 6, fontSize: 12, color: '#595959' }}>
-                    Cámara / Galería
+            <>
+              <Upload
+                listType="picture-card"
+                fileList={fileList}
+                accept="image/*"
+                multiple
+                showUploadList={{ showPreviewIcon: true, showRemoveIcon: !enhancing }}
+                beforeUpload={() => false}
+                onChange={({ fileList: fl }) => {
+                  // Only handle removals here (additions are handled via customRequest)
+                  if (fl.length < fileList.length) setFileList(fl)
+                }}
+                customRequest={async ({ file, onSuccess }) => {
+                  const raw = file as File
+                  const remaining = maxNewPhotos - fileList.length
+                  if (remaining <= 0) return
+                  const processed = await processFiles([raw])
+                  setFileList(prev => [...prev, ...processed].slice(0, maxNewPhotos))
+                  onSuccess?.('ok')
+                }}
+                disabled={enhancing}
+              >
+                {fileList.length < maxNewPhotos && !enhancing && (
+                  <div>
+                    <CameraOutlined style={{ fontSize: 22, color: '#c41d7f' }} />
+                    <div style={{ marginTop: 6, fontSize: 12, color: '#595959' }}>
+                      Agregar foto
+                    </div>
                   </div>
+                )}
+              </Upload>
+
+              {enhancing && (
+                <div style={{ margin: '8px 0' }}>
+                  <Progress
+                    percent={enhanceProgress}
+                    status="active"
+                    strokeColor="#c41d7f"
+                    format={() => (
+                      <span style={{ fontSize: 11, color: '#c41d7f' }}>
+                        {enhanceStatus === 'removing-bg' ? 'Quitando fondo…' : 'Componiendo…'}
+                      </span>
+                    )}
+                  />
                 </div>
               )}
-            </Upload>
+            </>
           )}
           <Text type="secondary" style={{ fontSize: 11, display: 'block', marginTop: 4, marginBottom: 16 }}>
-            Máx. 6 fotos · Se normalizan automáticamente: fondo blanco, formato 4:5, calidad optimizada
+            Máx. 6 fotos · IA elimina fondo → fondo blanco 4:5 · marca de agua MommyBazar
           </Text>
 
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
@@ -417,9 +491,10 @@ export default function Inventory() {
             <Button
               type="primary" htmlType="submit"
               loading={createMutation.isPending || updateMutation.isPending || uploadingImages}
+              disabled={enhancing}
               style={{ background: '#c41d7f', borderColor: '#c41d7f' }}
             >
-              {editItem ? 'Guardar cambios' : 'Crear artículo'}
+              {enhancing ? 'Procesando fotos…' : editItem ? 'Guardar cambios' : 'Crear artículo'}
             </Button>
           </div>
         </Form>

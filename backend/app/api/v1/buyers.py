@@ -44,3 +44,14 @@ def update_buyer(buyer_id: int, payload: BuyerUpdate, db: Session = Depends(get_
     db.commit()
     db.refresh(buyer)
     return buyer
+
+
+@router.post("/{buyer_id}/approve", response_model=BuyerOut)
+def approve_buyer(buyer_id: int, db: Session = Depends(get_db), _=Depends(get_current_user)):
+    buyer = db.query(Buyer).filter(Buyer.id == buyer_id).first()
+    if not buyer:
+        raise HTTPException(status_code=404, detail="Buyer not found")
+    buyer.is_approved = True
+    db.commit()
+    db.refresh(buyer)
+    return buyer

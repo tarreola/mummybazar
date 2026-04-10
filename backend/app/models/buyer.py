@@ -18,6 +18,8 @@ class Buyer(Base):
     notes = Column(Text, nullable=True)
     rating = Column(Integer, nullable=True)  # Internal admin rating 1-5
     is_active = Column(Boolean, default=True)
+    is_approved = Column(Boolean, default=False)   # Admin approval flag
+    password_hash = Column(String, nullable=True)  # Storefront login
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     orders = relationship("Order", back_populates="buyer")

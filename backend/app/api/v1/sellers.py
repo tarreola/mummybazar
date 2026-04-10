@@ -44,3 +44,14 @@ def update_seller(seller_id: int, payload: SellerUpdate, db: Session = Depends(g
     db.commit()
     db.refresh(seller)
     return seller
+
+
+@router.post("/{seller_id}/approve", response_model=SellerOut)
+def approve_seller(seller_id: int, db: Session = Depends(get_db), _=Depends(get_current_user)):
+    seller = db.query(Seller).filter(Seller.id == seller_id).first()
+    if not seller:
+        raise HTTPException(status_code=404, detail="Seller not found")
+    seller.is_approved = True
+    db.commit()
+    db.refresh(seller)
+    return seller

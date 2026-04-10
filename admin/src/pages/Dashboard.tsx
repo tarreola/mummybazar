@@ -1,26 +1,67 @@
+import { useState, useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Row, Col, Card, Statistic, Typography, Spin, Tag, Table, Rate, Avatar } from 'antd'
 import {
-  ShoppingOutlined, DollarOutlined, TeamOutlined, UserOutlined,
-  ClockCircleOutlined, WarningOutlined, RiseOutlined, TrophyOutlined,
+  Row, Col, Card, Statistic, Typography, Spin, Tag, Table, Rate,
+  Avatar, Segmented, DatePicker, Space, Tooltip,
+} from 'antd'
+import {
+  RiseOutlined, FallOutlined, MinusOutlined, WarningOutlined, TrophyOutlined,
 } from '@ant-design/icons'
 import { Column, Pie } from '@ant-design/charts'
-import dayjs from 'dayjs'
+import dayjs, { Dayjs } from 'dayjs'
 import {
-  getDashboardSummary, getRevenueByMonth, getItems, getSellers, getBuyers,
+  getDashboardSummary, getRevenueByMonth,
+  getDashboardTopSellers, getDashboardTopBuyers, getDashboardByCategory,
 } from '../api/client'
+import type { DashboardPeriod } from '../api/client'
 import api from '../api/client'
 
 const { Title, Text } = Typography
+const { RangePicker } = DatePicker
 
 const CATEGORY_LABEL: Record<string, string> = {
   clothing: 'Ropa', furniture: 'Muebles', lactancy: 'Lactancia',
   strollers: 'Carriolas', toys: 'Juguetes', accessories: 'Accesorios', other: 'Otro',
 }
 
-function KpiCard({ title, value, prefix, suffix, color, icon }: {
-  title: string; value: number | string; prefix?: string; suffix?: string;
-  color: string; icon?: React.ReactNode
+const PERIOD_OPTIONS = [
+  { label: 'Semana', value: 'WTD' },
+  { label: 'Mes', value: 'MTD' },
+  { label: 'Trimestre', value: 'QTD' },
+  { label: 'Año', value: 'YTD' },
+  { label: 'Rango', value: 'CUSTOM' },
+]
+
+const COMPARISON_LABEL: Record<string, string> = {
+  WTD: 'vs sem. anterior',
+  MTD: 'vs mes anterior',
+  QTD: 'vs trimestre ant.',
+  YTD: 'vs año anterior',
+  CUSTOM: 'vs periodo igual ant.',
+}
+
+// ── Delta badge ────────────────────────────────────────────────────────────────
+function Delta({ value }: { value: number | null | undefined }) {
+  if (value == null) return <Text type="secondary" style={{ fontSize: 11 }}>—</Text>
+  const up = value >= 0
+  const color = up ? '#389e0d' : '#f5222d'
+  const Icon = up ? RiseOutlined : FallOutlined
+  return (
+    <span style={{ fontSize: 11, color, display: 'inline-flex', alignItems: 'center', gap: 2 }}>
+      <Icon /> {up ? '+' : ''}{value}%
+    </span>
+  )
+}
+
+// ── KPI card with delta ────────────────────────────────────────────────────────
+function KpiCard({ title, value, prefix, suffix, color, delta, compLabel }: {
+  title: string
+  value: number | string
+  prefix?: string
+  suffix?: string
+  color: string
+  delta?: number | null
+  compLabel?: string
 }) {
   return (
     <Card style={{ borderRadius: 12, borderColor: '#ffe0f0', height: '100%' }}>
@@ -29,18 +70,43 @@ function KpiCard({ title, value, prefix, suffix, color, icon }: {
         value={value}
         prefix={prefix}
         suffix={suffix}
-        valueStyle={{ color, fontSize: 24, fontWeight: 700 }}
+        valueStyle={{ color, fontSize: 22, fontWeight: 700 }}
         formatter={(v) => typeof v === 'number' ? v.toLocaleString('es-MX') : v}
       />
+      {compLabel && (
+        <div style={{ marginTop: 4 }}>
+          <Delta value={delta} />
+          {delta != null && (
+            <Text type="secondary" style={{ fontSize: 11, marginLeft: 4 }}>{compLabel}</Text>
+          )}
+        </div>
+      )}
     </Card>
   )
 }
 
 export default function Dashboard() {
+  const [period, setPeriod] = useState<DashboardPeriod>('MTD')
+  const [customRange, setCustomRange] = useState<[Dayjs, Dayjs] | null>(null)
+
+  const dateParams = useMemo(() => {
+    if (period === 'CUSTOM' && customRange) {
+      return {
+        period: 'CUSTOM' as DashboardPeriod,
+        date_from: customRange[0].startOf('day').toISOString(),
+        date_to: customRange[1].endOf('day').toISOString(),
+      }
+    }
+    return { period }
+  }, [period, customRange])
+
+  const isCustomReady = period !== 'CUSTOM' || !!customRange
+
   const { data: summary, isLoading } = useQuery({
-    queryKey: ['dashboard-summary'],
-    queryFn: () => getDashboardSummary().then(r => r.data),
+    queryKey: ['dashboard-summary', dateParams],
+    queryFn: () => getDashboardSummary(dateParams).then(r => r.data),
     refetchInterval: 60_000,
+    enabled: isCustomReady,
   })
 
   const { data: revenue = [] } = useQuery({
@@ -49,18 +115,21 @@ export default function Dashboard() {
   })
 
   const { data: topSellers = [] } = useQuery({
-    queryKey: ['top-sellers'],
-    queryFn: () => api.get('/dashboard/top-sellers?limit=5').then(r => r.data),
+    queryKey: ['top-sellers', dateParams],
+    queryFn: () => getDashboardTopSellers(dateParams.period, (dateParams as any).date_from, (dateParams as any).date_to).then(r => r.data),
+    enabled: isCustomReady,
   })
 
   const { data: topBuyers = [] } = useQuery({
-    queryKey: ['top-buyers'],
-    queryFn: () => api.get('/dashboard/top-buyers?limit=5').then(r => r.data),
+    queryKey: ['top-buyers', dateParams],
+    queryFn: () => getDashboardTopBuyers(dateParams.period, (dateParams as any).date_from, (dateParams as any).date_to).then(r => r.data),
+    enabled: isCustomReady,
   })
 
   const { data: byCategory = [] } = useQuery({
-    queryKey: ['sales-by-category'],
-    queryFn: () => api.get('/dashboard/sales-by-category').then(r => r.data),
+    queryKey: ['sales-by-category', dateParams],
+    queryFn: () => getDashboardByCategory(dateParams.period, (dateParams as any).date_from, (dateParams as any).date_to).then(r => r.data),
+    enabled: isCustomReady,
   })
 
   const { data: stagnant = [] } = useQuery({
@@ -68,9 +137,34 @@ export default function Dashboard() {
     queryFn: () => api.get('/dashboard/stagnant-items?days=30&limit=10').then(r => r.data),
   })
 
-  if (isLoading) return <Spin size="large" style={{ display: 'block', marginTop: 80 }} />
+  const compLabel = COMPARISON_LABEL[period]
 
-  const s = summary!
+  if (!isCustomReady) {
+    return (
+      <div>
+        <Title level={4} style={{ color: '#c41d7f', marginBottom: 16 }}>Dashboard</Title>
+        <PeriodBar period={period} onPeriod={setPeriod} customRange={customRange} onCustomRange={setCustomRange} />
+        <div style={{ marginTop: 60, textAlign: 'center' }}>
+          <Text type="secondary">Selecciona un rango de fechas para ver el dashboard.</Text>
+        </div>
+      </div>
+    )
+  }
+
+  if (isLoading || !summary) return (
+    <div>
+      <Title level={4} style={{ color: '#c41d7f', marginBottom: 16 }}>Dashboard</Title>
+      <PeriodBar period={period} onPeriod={setPeriod} customRange={customRange} onCustomRange={setCustomRange} />
+      <Spin size="large" style={{ display: 'block', marginTop: 80 }} />
+    </div>
+  )
+
+  const s = summary
+
+  // Period label for subtitle
+  const periodSubtitle = s.period_label
+    ? `${dayjs(s.period_label.cur_start).format('DD/MM/YY')} – ${dayjs(s.period_label.cur_end).format('DD/MM/YY')}`
+    : ''
 
   // Charts data
   const revenueChartData = revenue.flatMap((r: any) => [
@@ -96,23 +190,41 @@ export default function Dashboard() {
 
   return (
     <div>
-      <Title level={4} style={{ color: '#c41d7f', marginBottom: 20 }}>Dashboard</Title>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16, flexWrap: 'wrap', gap: 8 }}>
+        <div>
+          <Title level={4} style={{ color: '#c41d7f', margin: 0 }}>Dashboard</Title>
+          {periodSubtitle && <Text type="secondary" style={{ fontSize: 12 }}>{periodSubtitle}</Text>}
+        </div>
+        <PeriodBar period={period} onPeriod={setPeriod} customRange={customRange} onCustomRange={setCustomRange} />
+      </div>
 
       {/* Row 1 — Revenue KPIs */}
       <Row gutter={[12, 12]}>
         {[
-          { title: 'Ventas este mes', value: s.revenue.month_gross, prefix: '$', suffix: 'MXN', color: '#c41d7f' },
-          { title: 'Comisión este mes', value: s.revenue.month_commission, prefix: '$', suffix: 'MXN', color: '#389e0d' },
-          { title: 'Unidades vendidas (mes)', value: s.revenue.units_sold_month, color: '#096dd9' },
-          { title: 'Pedidos totales', value: s.totals.orders, color: '#531dab' },
+          {
+            title: 'Ventas brutas', value: s.revenue.gross, prefix: '$', suffix: 'MXN',
+            color: '#c41d7f', delta: s.revenue.delta_gross,
+          },
+          {
+            title: 'Comisión (30%)', value: s.revenue.commission, prefix: '$', suffix: 'MXN',
+            color: '#389e0d', delta: s.revenue.delta_commission,
+          },
+          {
+            title: 'Unidades vendidas', value: s.revenue.units_sold,
+            color: '#096dd9', delta: s.revenue.delta_units,
+          },
+          {
+            title: 'Pedidos', value: s.revenue.orders,
+            color: '#531dab', delta: s.revenue.delta_orders,
+          },
         ].map(k => (
           <Col xs={12} lg={6} key={k.title}>
-            <KpiCard {...k} />
+            <KpiCard {...k} compLabel={compLabel} />
           </Col>
         ))}
       </Row>
 
-      {/* Row 2 — Community + Alerts */}
+      {/* Row 2 — Community + Alerts (no delta — always current snapshot) */}
       <Row gutter={[12, 12]} style={{ marginTop: 12 }}>
         {[
           { title: 'Vendedoras', value: s.totals.sellers, color: '#c41d7f' },
@@ -143,7 +255,7 @@ export default function Dashboard() {
           <Card title="Estado del inventario" style={{ borderRadius: 12, borderColor: '#ffe0f0', height: '100%' }}>
             {Object.entries(s.inventory as Record<string, number>).map(([status, count]) => (
               <div key={status} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                <Tag color={STATUS_COLORS[status]} style={{ minWidth: 100 }}>{STATUS_LABELS[status]}</Tag>
+                <Tag color={STATUS_COLORS[status]} style={{ minWidth: 110 }}>{STATUS_LABELS[status]}</Tag>
                 <Text strong style={{ fontSize: 16 }}>{count}</Text>
               </div>
             ))}
@@ -162,7 +274,7 @@ export default function Dashboard() {
                 legend={{ position: 'bottom' }}
               />
             ) : (
-              <Text type="secondary">Sin ventas registradas aún</Text>
+              <Text type="secondary">Sin ventas en este periodo</Text>
             )}
           </Card>
         </Col>
@@ -172,7 +284,7 @@ export default function Dashboard() {
             title={<span><TrophyOutlined style={{ color: '#faad14', marginRight: 6 }} />Top Vendedoras</span>}
             style={{ borderRadius: 12, borderColor: '#ffe0f0' }}
           >
-            {topSellers.length === 0 ? <Text type="secondary">Sin datos aún</Text> : topSellers.map((s: any, i: number) => (
+            {topSellers.length === 0 ? <Text type="secondary">Sin datos en este periodo</Text> : topSellers.map((s: any, i: number) => (
               <div key={s.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <Avatar size="small" style={{ background: '#ffadd2', color: '#c41d7f', fontSize: 11 }}>{i + 1}</Avatar>
@@ -193,7 +305,7 @@ export default function Dashboard() {
             title={<span><TrophyOutlined style={{ color: '#c41d7f', marginRight: 6 }} />Top Compradoras</span>}
             style={{ borderRadius: 12, borderColor: '#ffe0f0' }}
           >
-            {topBuyers.length === 0 ? <Text type="secondary">Sin datos aún</Text> : topBuyers.map((b: any, i: number) => (
+            {topBuyers.length === 0 ? <Text type="secondary">Sin datos en este periodo</Text> : topBuyers.map((b: any, i: number) => (
               <div key={b.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <Avatar size="small" style={{ background: '#d9f7be', color: '#389e0d', fontSize: 11 }}>{i + 1}</Avatar>
@@ -239,5 +351,34 @@ export default function Dashboard() {
         </Row>
       )}
     </div>
+  )
+}
+
+// ── Period selector bar (extracted so it renders even during loading) ──────────
+function PeriodBar({ period, onPeriod, customRange, onCustomRange }: {
+  period: DashboardPeriod
+  onPeriod: (p: DashboardPeriod) => void
+  customRange: [Dayjs, Dayjs] | null
+  onCustomRange: (r: [Dayjs, Dayjs] | null) => void
+}) {
+  return (
+    <Space size={8} wrap>
+      <Segmented
+        options={PERIOD_OPTIONS}
+        value={period}
+        onChange={v => onPeriod(v as DashboardPeriod)}
+        style={{ background: '#fff0f6', borderRadius: 8 }}
+      />
+      {period === 'CUSTOM' && (
+        <RangePicker
+          value={customRange}
+          onChange={v => onCustomRange(v as [Dayjs, Dayjs] | null)}
+          format="DD/MM/YY"
+          disabledDate={d => d.isAfter(dayjs())}
+          allowClear
+          style={{ borderColor: '#c41d7f' }}
+        />
+      )}
+    </Space>
   )
 }

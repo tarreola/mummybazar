@@ -29,9 +29,25 @@ export const login = (email: string, password: string) =>
   api.post<{ access_token: string }>('/auth/login', { email, password })
 
 // ── Dashboard ─────────────────────────────────────────────────────────────────
-export const getDashboardSummary = () => api.get('/dashboard/summary')
+export type DashboardPeriod = 'WTD' | 'MTD' | 'QTD' | 'YTD' | 'CUSTOM'
+
+export const getDashboardSummary = (params?: {
+  period?: DashboardPeriod
+  date_from?: string
+  date_to?: string
+}) => api.get('/dashboard/summary', { params })
+
 export const getRevenueByMonth = (months = 6) =>
   api.get(`/dashboard/revenue-by-month?months=${months}`)
+
+export const getDashboardTopSellers = (period: DashboardPeriod, dateFrom?: string, dateTo?: string) =>
+  api.get('/dashboard/top-sellers', { params: { limit: 5, period, date_from: dateFrom, date_to: dateTo } })
+
+export const getDashboardTopBuyers = (period: DashboardPeriod, dateFrom?: string, dateTo?: string) =>
+  api.get('/dashboard/top-buyers', { params: { limit: 5, period, date_from: dateFrom, date_to: dateTo } })
+
+export const getDashboardByCategory = (period: DashboardPeriod, dateFrom?: string, dateTo?: string) =>
+  api.get('/dashboard/sales-by-category', { params: { period, date_from: dateFrom, date_to: dateTo } })
 
 // ── Sellers ───────────────────────────────────────────────────────────────────
 export const getSellers = () => api.get('/sellers/')
