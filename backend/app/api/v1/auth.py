@@ -21,6 +21,24 @@ def login(payload: LoginRequest, db: Session = Depends(get_db)):
     return Token(access_token=token)
 
 
+@router.post("/setup", response_model=UserOut)
+def setup_admin(db: Session = Depends(get_db)):
+    """Creates the first admin user. Only works when no users exist."""
+    if db.query(User).count() > 0:
+        raise HTTPException(status_code=403, detail="Setup already completed")
+    user = User(
+        email="admin@mommybazar.mx",
+        full_name="Admin MommyBazar",
+        hashed_password=hash_password("mommy2024"),
+        is_active=True,
+        is_superuser=True,
+    )
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    return user
+
+
 @router.post("/users", response_model=UserOut, dependencies=[Depends(require_superuser)])
 def create_user(payload: UserCreate, db: Session = Depends(get_db)):
     if db.query(User).filter(User.email == payload.email).first():
