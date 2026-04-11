@@ -8,11 +8,11 @@ import {
 import {
   SendOutlined, WhatsAppOutlined, NotificationOutlined,
   WarningOutlined, TeamOutlined, UserOutlined, MessageOutlined,
-  EyeOutlined, ShoppingOutlined, CopyOutlined, SearchOutlined,
+  EyeOutlined, ShoppingOutlined, CopyOutlined, SearchOutlined, PlusOutlined,
 } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import dayjs from 'dayjs'
-import { getMessages, sendMessage, getSellers, getBuyers } from '../api/client'
+import { getMessages, sendMessage, getSellers, getBuyers, createBuyer } from '../api/client'
 import api from '../api/client'
 import type { WhatsAppMessage, Seller, Buyer } from '../types'
 
@@ -135,11 +135,13 @@ export default function WhatsAppHub() {
   const qc = useQueryClient()
   const [composeOpen, setComposeOpen] = useState(false)
   const [campaignOpen, setCampaignOpen] = useState(false)
+  const [addContactOpen, setAddContactOpen] = useState(false)
   const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null)
   const [recipientType, setRecipientType] = useState<'seller' | 'buyer' | 'custom'>('buyer')
   const [promoItems, setPromoItems] = useState<any[]>([])
   const [form] = Form.useForm()
   const [campaignForm] = Form.useForm()
+  const [addContactForm] = Form.useForm()
   const [campaignType, setCampaignType] = useState<'promo' | 'general' | 'stagnant'>('general')
   const [contactSearch, setContactSearch] = useState('')
 
@@ -190,6 +192,17 @@ export default function WhatsAppHub() {
     mutationFn: () => api.post('/whatsapp/remind-stagnant?days=30'),
     onSuccess: (res) => message.success(`Recordatorios enviados a ${res.data.sellers_notified} vendedoras`),
     onError: () => message.error('Error al enviar recordatorios'),
+  })
+
+  const addContactMutation = useMutation({
+    mutationFn: (data: object) => createBuyer(data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['buyers'] })
+      setAddContactOpen(false)
+      addContactForm.resetFields()
+      message.success('Contacto agregado')
+    },
+    onError: (e: any) => message.error(e.response?.data?.detail || 'Error al agregar contacto'),
   })
 
   // ── Handlers ──────────────────────────────────────────────────────────────────
@@ -340,22 +353,14 @@ export default function WhatsAppHub() {
       </Card>
 
       <Tabs
-        defaultActiveKey="log"
+        defaultActiveKey="contacts"
         items={[
-          {
-            key: 'log',
-            label: <span><MessageOutlined />Historial ({messages.length})</span>,
-            children: (
-              <Table dataSource={messages} columns={columns} rowKey="id" loading={isLoading}
-                size="small" pagination={{ pageSize: 30 }} />
-            ),
-          },
           {
             key: 'contacts',
             label: <span><UserOutlined />Contactos <Badge count={buyers.length} color="#c41d7f" /></span>,
             children: (
               <div>
-                <div style={{ marginBottom: 12 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
                   <Input
                     placeholder="Buscar por nombre, teléfono o email…"
                     prefix={<SearchOutlined style={{ color: '#c41d7f' }} />}
@@ -364,6 +369,11 @@ export default function WhatsAppHub() {
                     allowClear
                     style={{ width: 300 }}
                   />
+                  <Button type="primary" icon={<PlusOutlined />}
+                    onClick={() => setAddContactOpen(true)}
+                    style={{ background: '#c41d7f', borderColor: '#c41d7f' }}>
+                    Añadir contacto
+                  </Button>
                 </div>
                 <Table
                   dataSource={filteredContacts}
@@ -458,6 +468,14 @@ export default function WhatsAppHub() {
               </div>
             ),
           },
+          {
+            key: 'log',
+            label: <span><MessageOutlined />Historial ({messages.length})</span>,
+            children: (
+              <Table dataSource={messages} columns={columns} rowKey="id" loading={isLoading}
+                size="small" pagination={{ pageSize: 30 }} />
+            ),
+          },
         ]}
       />
 
@@ -521,6 +539,32 @@ export default function WhatsAppHub() {
             <Button onClick={() => setComposeOpen(false)}>Cancelar</Button>
             <Button type="primary" htmlType="submit" icon={<SendOutlined />} loading={sendMutation.isPending}
               style={{ background: '#25d366', borderColor: '#25d366' }}>Enviar</Button>
+          </div>
+        </Form>
+      </Modal>
+
+      {/* ── Add contact modal ────────────────────────────────────────────────── */}
+      <Modal open={addContactOpen} title="Añadir contacto"
+        onCancel={() => { setAddContactOpen(false); addContactForm.resetFields() }} footer={null} width={440}>
+        <Form form={addContactForm} layout="vertical" onFinish={v => addContactMutation.mutate(v)}>
+          <Form.Item name="full_name" label="Nombre completo" rules={[{ required: true }]}>
+            <Input />
+          </Form.Item>
+          <Form.Item name="phone" label="WhatsApp (con código de país)" rules={[{ required: true }]} extra="Ej: +525512345678">
+            <Input />
+          </Form.Item>
+          <Form.Item name="email" label="Email">
+            <Input />
+          </Form.Item>
+          <Form.Item name="neighborhood" label="Colonia">
+            <Input />
+          </Form.Item>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+            <Button onClick={() => { setAddContactOpen(false); addContactForm.resetFields() }}>Cancelar</Button>
+            <Button type="primary" htmlType="submit" loading={addContactMutation.isPending}
+              style={{ background: '#c41d7f', borderColor: '#c41d7f' }}>
+              Guardar
+            </Button>
           </div>
         </Form>
       </Modal>

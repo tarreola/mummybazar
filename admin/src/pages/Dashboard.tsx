@@ -204,22 +204,10 @@ export default function Dashboard() {
       {/* Row 1 — Revenue KPIs */}
       <Row gutter={[12, 12]}>
         {[
-          {
-            title: 'Ventas brutas', value: s.revenue.gross, prefix: '$', suffix: 'MXN',
-            color: '#c41d7f', delta: s.revenue.delta_gross,
-          },
-          {
-            title: 'Comisión (30%)', value: s.revenue.commission, prefix: '$', suffix: 'MXN',
-            color: '#389e0d', delta: s.revenue.delta_commission,
-          },
-          {
-            title: 'Unidades vendidas', value: s.revenue.units_sold,
-            color: '#096dd9', delta: s.revenue.delta_units,
-          },
-          {
-            title: 'Pedidos', value: s.revenue.orders,
-            color: '#531dab', delta: s.revenue.delta_orders,
-          },
+          { title: 'Ventas brutas', value: s.revenue.gross, prefix: '$', suffix: 'MXN', color: '#c41d7f', delta: s.revenue.delta_gross },
+          { title: 'Comisión (30%)', value: s.revenue.commission, prefix: '$', suffix: 'MXN', color: '#389e0d', delta: s.revenue.delta_commission },
+          { title: 'Número de pedidos', value: s.revenue.orders, color: '#531dab', delta: s.revenue.delta_orders },
+          { title: 'Pagos pendientes a vendedoras', value: s.pending_seller_payouts, prefix: '$', suffix: 'MXN', color: '#d46b08' },
         ].map(k => (
           <Col xs={12} lg={6} key={k.title}>
             <KpiCard {...k} compLabel={compLabel} />
@@ -227,12 +215,12 @@ export default function Dashboard() {
         ))}
       </Row>
 
-      {/* Row 2 — Community + Alerts (no delta — always current snapshot) */}
+      {/* Row 2 — Operational snapshot */}
       <Row gutter={[12, 12]} style={{ marginTop: 12 }}>
         {[
-          { title: 'Vendedoras', value: s.totals.sellers, color: '#c41d7f' },
           { title: 'Pedidos cerrados', value: s.closed_orders_count ?? 0, color: '#595959' },
-          { title: 'Pagos pendientes a vendedoras', value: s.pending_seller_payouts, prefix: '$', suffix: 'MXN', color: '#d46b08' },
+          { title: 'Pedidos pendientes de envío', value: (s.inventory?.['sold'] ?? 0), color: '#fa8c16' },
+          { title: 'Vendedoras', value: s.totals.sellers, color: '#c41d7f' },
           { title: 'Artículos sin movimiento (+30 días)', value: s.stagnant_items_count, color: '#f5222d' },
         ].map(k => (
           <Col xs={12} lg={6} key={k.title}>
@@ -256,12 +244,31 @@ export default function Dashboard() {
         </Col>
         <Col xs={24} lg={9}>
           <Card title="Estado del inventario" style={{ borderRadius: 12, borderColor: '#ffe0f0', height: '100%' }}>
-            {Object.entries(s.inventory as Record<string, number>).map(([status, count]) => (
-              <div key={status} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                <Tag color={STATUS_COLORS[status]} style={{ minWidth: 110 }}>{STATUS_LABELS[status]}</Tag>
-                <Text strong style={{ fontSize: 16 }}>{count}</Text>
-              </div>
-            ))}
+            {(() => {
+              const inv = s.inventory as Record<string, number>
+              const total = Object.values(inv).reduce((a, b) => a + b, 0) || 1
+              return Object.entries(inv).filter(([, count]) => count > 0).map(([status, count]) => (
+                <div key={status} style={{ marginBottom: 10 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
+                    <Tag color={STATUS_COLORS[status]} style={{ margin: 0 }}>{STATUS_LABELS[status]}</Tag>
+                    <Text strong style={{ fontSize: 13 }}>{count}</Text>
+                  </div>
+                  <div style={{ height: 6, background: '#f5f5f5', borderRadius: 3, overflow: 'hidden' }}>
+                    <div style={{
+                      height: '100%', borderRadius: 3,
+                      width: `${Math.round((count / total) * 100)}%`,
+                      background: STATUS_COLORS[status] === 'default' ? '#d9d9d9' :
+                        status === 'listed' ? '#52c41a' :
+                        status === 'sold' ? '#faad14' :
+                        status === 'received' ? '#1677ff' :
+                        status === 'inspected' ? '#13c2c2' :
+                        status === 'shipped' ? '#fa8c16' :
+                        status === 'returned' ? '#f5222d' : '#d9d9d9',
+                    }} />
+                  </div>
+                </div>
+              ))
+            })()}
           </Card>
         </Col>
       </Row>

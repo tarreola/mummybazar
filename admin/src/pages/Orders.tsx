@@ -375,7 +375,7 @@ export default function Orders() {
             loading={updateMutation.isPending}
             onChange={(status: OrderStatus) => changeStatus(record, status)}
           >
-            {Object.entries(STATUS_LABEL).filter(([k]) => k !== 'closed').map(([k, label]) => (
+            {Object.entries(STATUS_LABEL).filter(([k]) => k !== 'closed' && k !== 'delivered').map(([k, label]) => (
               <Option key={k} value={k}>
                 <Tag color={STATUS_COLOR[k as OrderStatus]} style={{ margin: 0, fontSize: 11 }}>
                   {label}
@@ -661,7 +661,7 @@ export default function Orders() {
         <Form form={editForm} layout="vertical" onFinish={onEditSave}>
           <Form.Item name="status" label="Estado del pedido">
             <Select>
-              {Object.entries(STATUS_LABEL).map(([k, v]) => <Option key={k} value={k}>{v}</Option>)}
+              {Object.entries(STATUS_LABEL).filter(([k]) => k !== 'delivered').map(([k, v]) => <Option key={k} value={k}>{v}</Option>)}
             </Select>
           </Form.Item>
           <Form.Item name="shipping_method" label="Método de envío">

@@ -1,11 +1,9 @@
 import { Link, useNavigate, Outlet } from 'react-router-dom'
 import { useAuth } from '../store/auth'
-import { useState } from 'react'
 
 export default function Layout() {
   const { user, logout, isAuthenticated } = useAuth()
   const navigate = useNavigate()
-  const [menuOpen, setMenuOpen] = useState(false)
 
   const handleLogout = () => { logout(); navigate('/') }
 
@@ -21,35 +19,31 @@ export default function Layout() {
           height: 60, gap: 16,
         }}>
           {/* Logo */}
-          <Link to="/" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <div style={{
-              width: 36, height: 36, borderRadius: '50%',
-              background: 'var(--pink)', display: 'flex', alignItems: 'center',
-              justifyContent: 'center', color: '#fff', fontWeight: 800, fontSize: 16,
-            }}>M</div>
-            <span style={{ fontWeight: 800, fontSize: 18, color: 'var(--pink)' }}>
-              Mommy<span style={{ color: '#262626' }}>Bazar</span>
+          <Link to="/" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: 28, lineHeight: 1 }}>🌸</span>
+            <span style={{ fontWeight: 800, fontSize: 18, color: 'var(--pink)', lineHeight: 1 }}>
+              MommyBazar
             </span>
           </Link>
 
           {/* Nav */}
           <nav style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <Link to="/" style={{ fontSize: 14, fontWeight: 500, color: 'var(--text)', padding: '6px 10px' }}>
+              Inicio
+            </Link>
+            <Link to="/catalogo" style={{ fontSize: 14, fontWeight: 500, color: 'var(--text)', padding: '6px 10px' }}>
               Catálogo
+            </Link>
+            <Link to="/seguimiento" style={{ fontSize: 14, fontWeight: 500, color: 'var(--text)', padding: '6px 10px' }}>
+              📦 Mi pedido
             </Link>
 
             {!isAuthenticated ? (
               <>
-                <Link to="/login" className="btn btn-outline btn-sm">Iniciar sesión</Link>
-                <Link to="/registro" className="btn btn-primary btn-sm">Registrarme</Link>
+                <Link to="/login" className="btn btn-outline btn-sm">Vendedoras</Link>
               </>
             ) : (
               <>
-                {user?.role === 'buyer' && (
-                  <Link to="/mis-compras" style={{ fontSize: 14, fontWeight: 500, color: 'var(--text)', padding: '6px 10px' }}>
-                    Mis compras
-                  </Link>
-                )}
                 {user?.role === 'seller' && (
                   <Link to="/mis-articulos" style={{ fontSize: 14, fontWeight: 500, color: 'var(--text)', padding: '6px 10px' }}>
                     Mis artículos

@@ -42,6 +42,9 @@ class SellerOut(BaseModel):
     notes: Optional[str]
     rating: Optional[int]
     is_active: bool
+    is_approved: bool = False
+    total_listed: Optional[int] = None
+    has_pending_payout: Optional[bool] = None
     created_at: datetime
 
     model_config = {"from_attributes": True}

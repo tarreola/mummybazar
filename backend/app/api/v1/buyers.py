@@ -1,10 +1,12 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 from typing import List
 
 from app.core.database import get_db
 from app.api.deps import get_current_user
 from app.models.buyer import Buyer
+from app.models.order import Order
 from app.schemas.buyer import BuyerCreate, BuyerUpdate, BuyerOut
 
 router = APIRouter(prefix="/buyers", tags=["buyers"])
@@ -12,7 +14,10 @@ router = APIRouter(prefix="/buyers", tags=["buyers"])
 
 @router.get("/", response_model=List[BuyerOut])
 def list_buyers(skip: int = 0, limit: int = 100, db: Session = Depends(get_db), _=Depends(get_current_user)):
-    return db.query(Buyer).offset(skip).limit(limit).all()
+    buyers = db.query(Buyer).offset(skip).limit(limit).all()
+    for b in buyers:
+        b.total_orders = db.query(func.count(Order.id)).filter(Order.buyer_id == b.id).scalar() or 0
+    return buyers
 
 
 @router.post("/", response_model=BuyerOut)

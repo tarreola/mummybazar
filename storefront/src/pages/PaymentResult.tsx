@@ -43,7 +43,7 @@ export default function PaymentResult({ type }: { type: 'success' | 'failure' | 
         </p>
         <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap' }}>
           {type === 'success' ? (
-            <Link to="/mis-compras" className="btn btn-primary">Ver mis compras</Link>
+            <Link to="/seguimiento" className="btn btn-primary">Rastrear mi pedido</Link>
           ) : (
             <Link to="/" className="btn btn-primary">Volver al catálogo</Link>
           )}

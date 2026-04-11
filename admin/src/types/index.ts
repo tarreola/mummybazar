@@ -15,6 +15,8 @@ export type ItemCategory =
 
 export type ItemCondition = 'like_new' | 'good' | 'fair'
 
+export type ItemGender = 'girl' | 'boy' | 'unisex'
+
 export type OrderStatus =
   | 'pending_payment' | 'paid' | 'preparing'
   | 'shipped' | 'delivered' | 'closed' | 'cancelled' | 'refunded'
@@ -80,6 +82,7 @@ export interface Item {
   description?: string
   category: ItemCategory
   condition: ItemCondition
+  gender?: ItemGender
   brand?: string
   size?: string
   color?: string
@@ -91,7 +94,8 @@ export interface Item {
   notes?: string
   status: ItemStatus
   is_featured: boolean
-  seller_id: number
+  no_seller: boolean
+  seller_id?: number
   received_at?: string
   listed_at?: string
   sold_at?: string

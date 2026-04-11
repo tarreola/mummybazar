@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useCallback } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   Table, Button, Modal, Form, Input, Space, Typography, Tag, Tooltip,
@@ -110,17 +110,6 @@ export default function Sellers() {
       ),
     },
     { title: 'Email', dataIndex: 'email', render: v => v || '—' },
-    { title: 'Banco / CLABE', dataIndex: 'clabe', render: (v, r) => v ? `${r.bank_name || ''} ···${v.slice(-4)}` : '—' },
-    {
-      title: 'Calificación', dataIndex: 'rating', width: 140,
-      render: (v, r) => (
-        <Rate
-          value={v || 0} count={5}
-          style={{ fontSize: 14 }}
-          onChange={rating => updateMutation.mutate({ id: r.id, data: { rating } })}
-        />
-      ),
-    },
     {
       title: 'Publicados', width: 90,
       render: (_, r) => {
@@ -143,12 +132,14 @@ export default function Sellers() {
         ),
     },
     {
-      title: 'Estado', dataIndex: 'is_active', width: 80,
-      render: v => <Tag color={v ? 'green' : 'default'}>{v ? 'Activa' : 'Inactiva'}</Tag>,
-    },
-    {
-      title: 'Desde', dataIndex: 'created_at', width: 90,
-      render: v => dayjs(v).format('DD/MM/YY'),
+      title: 'Calificación', dataIndex: 'rating', width: 150,
+      render: (v, r) => (
+        <Rate
+          value={v || 0} count={5}
+          style={{ fontSize: 14 }}
+          onChange={rating => updateMutation.mutate({ id: r.id, data: { rating } })}
+        />
+      ),
     },
     {
       title: '', width: 80,
@@ -210,8 +201,14 @@ export default function Sellers() {
 
             {stats && (
               <Row gutter={[8, 8]} style={{ marginBottom: 16 }}>
+                <Col xs={12}>
+                  <Card size="small" style={{ borderRadius: 8, borderColor: '#ffe0f0', cursor: 'pointer' }}
+                    onClick={() => { setStatsSeller(null); setStats(null); navigate(`/inventory?seller_id=${statsSeller!.id}`) }}>
+                    <Statistic title={<span>Artículos totales <OrderedListOutlined style={{ color: '#c41d7f', marginLeft: 4 }} /></span>}
+                      value={stats.total_items} valueStyle={{ fontSize: 18 }} />
+                  </Card>
+                </Col>
                 {[
-                  { title: 'Artículos totales', value: stats.total_items },
                   { title: 'Publicados', value: stats.listed, valueStyle: { color: '#52c41a' } },
                   { title: 'Vendidos', value: stats.sold, valueStyle: { color: '#faad14' } },
                   { title: 'Total ganado', value: `$${stats.total_earned.toLocaleString('es-MX')}`, valueStyle: { color: '#389e0d' } },

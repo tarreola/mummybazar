@@ -33,6 +33,12 @@ class ItemCondition(str, enum.Enum):
     FAIR = "fair"
 
 
+class ItemGender(str, enum.Enum):
+    GIRL = "girl"
+    BOY = "boy"
+    UNISEX = "unisex"
+
+
 class Item(Base):
     """A unique second-hand item in the inventory."""
     __tablename__ = "items"
@@ -48,6 +54,10 @@ class Item(Base):
     brand = Column(String, nullable=True)
     size = Column(String, nullable=True)  # e.g. "3-6m", "Talla 2", "Universal"
     color = Column(String, nullable=True)
+    gender = Column(Enum(ItemGender), nullable=True)   # girl / boy / unisex
+
+    # No-seller flag: 100% commission, no payout
+    no_seller = Column(Boolean, default=False)
 
     # Pricing
     original_price = Column(Numeric(10, 2), nullable=True)   # What seller paid originally
@@ -67,7 +77,7 @@ class Item(Base):
     notes = Column(Text, nullable=True)
     is_featured = Column(Boolean, default=False)
 
-    seller_id = Column(Integer, ForeignKey("sellers.id"), nullable=False)
+    seller_id = Column(Integer, ForeignKey("sellers.id"), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 

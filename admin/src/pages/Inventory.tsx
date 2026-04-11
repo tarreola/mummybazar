@@ -1,18 +1,21 @@
-import { useState } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   Table, Tag, Button, Modal, Form, Input, Select, InputNumber,
   Space, Typography, Tooltip, message, Drawer, Descriptions, Popconfirm,
-  Upload, Image, Divider, Progress,
+  Upload, Image, Divider, Progress, Alert, Card, Checkbox,
 } from 'antd'
 import {
   PlusOutlined, EditOutlined, StopOutlined, LinkOutlined,
-  ClockCircleOutlined, CameraOutlined, DeleteOutlined,
+  ClockCircleOutlined, CameraOutlined, DeleteOutlined, WarningOutlined,
+  ArrowRightOutlined, FilterOutlined,
 } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import type { UploadFile } from 'antd/es/upload'
 import dayjs from 'dayjs'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { getItems, createItem, updateItem, getSellers, uploadItemImage, deleteItemImage } from '../api/client'
+import api from '../api/client'
 import type { Item, ItemStatus, Seller } from '../types'
 import { enhanceImage } from '../hooks/useImageEnhance'
 import type { EnhanceStatus } from '../hooks/useImageEnhance'
@@ -28,7 +31,11 @@ const STATUS_COLOR: Record<ItemStatus, string> = {
 const STATUS_LABEL: Record<ItemStatus, string> = {
   received: 'Recibido', inspected: 'Inspeccionado', listed: 'Publicado',
   sold: 'Vendido', shipped: 'Enviado', delivered: 'Entregado',
-  returned: 'Devuelto', archived: 'Archivado',
+  returned: 'Devuelto', archived: 'Donado',
+}
+const SOLD_STATUSES: ItemStatus[] = ['sold', 'shipped', 'delivered']
+const GENDER_LABEL: Record<string, string> = {
+  girl: 'Niña', boy: 'Niño', unisex: 'Unisex',
 }
 const CATEGORY_LABEL: Record<string, string> = {
   clothing: 'Ropa', furniture: 'Muebles', lactancy: 'Lactancia',
@@ -48,8 +55,11 @@ function daysAgo(date?: string | null): number | null {
 
 export default function Inventory() {
   const qc = useQueryClient()
-  const [filterStatus, setFilterStatus] = useState<ItemStatus | undefined>()
-  const [filterCategory, setFilterCategory] = useState<string | undefined>()
+  const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const [filterSellerId, setFilterSellerId] = useState<number | null>(
+    searchParams.get('seller_id') ? Number(searchParams.get('seller_id')) : null
+  )
   const [modalOpen, setModalOpen] = useState(false)
   const [editItem, setEditItem] = useState<Item | null>(null)
   const [drawerItem, setDrawerItem] = useState<Item | null>(null)
@@ -57,7 +67,10 @@ export default function Inventory() {
   const [uploadingImages, setUploadingImages] = useState(false)
   const [enhancing, setEnhancing] = useState(false)
   const [enhanceStatus, setEnhanceStatus] = useState<EnhanceStatus>('idle')
-  const [enhanceProgress, setEnhanceProgress] = useState(0)   // 0-100 across all queued files
+  const [enhanceProgress, setEnhanceProgress] = useState(0)
+  const [showClosed, setShowClosed] = useState(false)
+  const [filterCategories, setFilterCategories] = useState<string[]>([])
+  const [noSellerFilter, setNoSellerFilter] = useState(false)
   const [form] = Form.useForm()
 
   // Process a batch of raw files through the AI pipeline
@@ -101,11 +114,13 @@ export default function Inventory() {
   }
 
   const { data: items = [], isLoading } = useQuery<Item[]>({
-    queryKey: ['items', filterStatus, filterCategory],
-    queryFn: () => getItems({
-      ...(filterStatus ? { status: filterStatus } : {}),
-      ...(filterCategory ? { category: filterCategory } : {}),
-    }).then(r => r.data),
+    queryKey: ['items'],
+    queryFn: () => getItems({ limit: 200 }).then(r => r.data),
+  })
+
+  const { data: stagnant = [] } = useQuery({
+    queryKey: ['stagnant-items'],
+    queryFn: () => api.get('/dashboard/stagnant-items?days=30&limit=20').then(r => r.data),
   })
 
   const { data: sellers = [] } = useQuery<Seller[]>({
@@ -180,8 +195,18 @@ export default function Inventory() {
 
   const total = items.length
   const listed = items.filter(i => i.status === 'listed').length
-  const stagnant = items.filter(i => i.status === 'listed' && daysAgo(i.listed_at) !== null && daysAgo(i.listed_at)! > 30).length
+  const stagnantCount = items.filter(i => i.status === 'listed' && daysAgo(i.listed_at) !== null && daysAgo(i.listed_at)! > 30).length
   const sellerMap = Object.fromEntries(sellers.map(s => [s.id, s]))
+
+  const CLOSED_ITEM_STATUSES: ItemStatus[] = ['sold', 'shipped', 'delivered', 'returned', 'archived']
+  const filteredItems = useMemo(() => {
+    let result = items
+    if (!showClosed) result = result.filter(i => !CLOSED_ITEM_STATUSES.includes(i.status))
+    if (filterCategories.length > 0) result = result.filter(i => filterCategories.includes(i.category))
+    if (noSellerFilter) result = result.filter(i => i.no_seller)
+    if (filterSellerId) result = result.filter(i => i.seller_id === filterSellerId)
+    return result
+  }, [items, showClosed, filterCategories, noSellerFilter, filterSellerId])
 
   // How many more photos can be added in the modal
   const existingCount = editItem ? parseImages(editItem.images).length : 0
@@ -204,18 +229,25 @@ export default function Inventory() {
       },
     },
     { title: 'Artículo', dataIndex: 'title', ellipsis: true },
-    { title: 'Categoría', dataIndex: 'category', width: 100, render: v => CATEGORY_LABEL[v] || v },
-    { title: 'Condición', dataIndex: 'condition', width: 100, render: v => CONDITION_LABEL[v] || v },
     {
-      title: 'Precio', dataIndex: 'selling_price', width: 105,
+      title: 'Categoría', dataIndex: 'category', width: 110,
+      render: v => CATEGORY_LABEL[v] || v,
+      filters: Object.entries(CATEGORY_LABEL).map(([k, v]) => ({ text: v, value: k })),
+      onFilter: (value, record) => record.category === value,
+    },
+    {
+      title: 'Condición', dataIndex: 'condition', width: 110,
+      render: v => CONDITION_LABEL[v] || v,
+      filters: Object.entries(CONDITION_LABEL).map(([k, v]) => ({ text: v, value: k })),
+      onFilter: (value, record) => record.condition === value,
+    },
+    {
+      title: 'Precio', dataIndex: 'selling_price', width: 110,
       render: v => `$${Number(v).toLocaleString('es-MX')}`,
+      sorter: (a, b) => Number(a.selling_price) - Number(b.selling_price),
     },
     {
-      title: 'Estado', dataIndex: 'status', width: 120,
-      render: (v: ItemStatus) => <Tag color={STATUS_COLOR[v]}>{STATUS_LABEL[v]}</Tag>,
-    },
-    {
-      title: 'Tiempo publicado', dataIndex: 'listed_at', width: 130,
+      title: 'Tiempo publicado', dataIndex: 'listed_at', width: 140,
       render: v => {
         if (!v) return '—'
         const days = daysAgo(v)!
@@ -225,64 +257,90 @@ export default function Inventory() {
           </Tag>
         )
       },
+      sorter: (a, b) => {
+        if (!a.listed_at) return 1
+        if (!b.listed_at) return -1
+        return dayjs(a.listed_at).unix() - dayjs(b.listed_at).unix()
+      },
     },
     {
-      title: 'Vendedora', dataIndex: 'seller_id', width: 130,
+      title: 'Vendedora', dataIndex: 'seller_id', width: 140,
       render: v => {
         const s = sellerMap[v]
         return s ? <Text style={{ fontSize: 12 }}>{s.full_name}</Text> : `#${v}`
       },
+      filters: sellers.map(s => ({ text: s.full_name, value: s.id })),
+      onFilter: (value, record) => record.seller_id === value,
     },
     {
-      title: 'Acciones', width: 140,
+      title: 'Estado', dataIndex: 'status', width: 150,
+      render: (v: ItemStatus, record) => (
+        <Select
+          size="small" value={v} style={{ width: 140 }}
+          onChange={(status) => updateMutation.mutate({ id: record.id, data: { status } })}
+        >
+          {Object.entries(STATUS_LABEL).map(([k, lbl]) => (
+            <Option key={k} value={k}>
+              <Tag color={STATUS_COLOR[k as ItemStatus]} style={{ margin: 0, fontSize: 11 }}>{lbl}</Tag>
+            </Option>
+          ))}
+        </Select>
+      ),
+    },
+    {
+      title: '', width: 50,
       render: (_, record) => (
-        <Space size={4}>
-          <Tooltip title="Editar">
-            <Button size="small" icon={<EditOutlined />} onClick={() => openEdit(record)} />
-          </Tooltip>
-          <Select
-            size="small" value={record.status} style={{ width: 100 }}
-            onChange={(status) => updateMutation.mutate({ id: record.id, data: { status } })}
-          >
-            {Object.entries(STATUS_LABEL).map(([k, v]) => <Option key={k} value={k}>{v}</Option>)}
-          </Select>
-          {record.status === 'listed' && (
-            <Popconfirm
-              title="¿Vendido fuera de plataforma?"
-              description="El artículo se archivará y no generará comisión."
-              onConfirm={() => markSoldOffPlatform(record)}
-              okText="Sí" cancelText="No"
-            >
-              <Tooltip title="Vendido fuera de plataforma">
-                <Button size="small" danger icon={<StopOutlined />} />
-              </Tooltip>
-            </Popconfirm>
-          )}
-        </Space>
+        <Tooltip title="Editar">
+          <Button size="small" icon={<EditOutlined />} onClick={() => openEdit(record)} />
+        </Tooltip>
       ),
     },
   ]
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
         <div>
           <Title level={4} style={{ color: '#c41d7f', margin: 0 }}>Inventario</Title>
           <Space size={16} style={{ marginTop: 4 }}>
             <Text type="secondary">Total: <Text strong>{total}</Text></Text>
             <Text type="secondary">Publicados: <Text strong style={{ color: '#52c41a' }}>{listed}</Text></Text>
-            {stagnant > 0 && <Text type="secondary">Sin movimiento: <Text strong style={{ color: '#f5222d' }}>{stagnant}</Text></Text>}
+            {stagnantCount > 0 && <Text type="secondary">Sin movimiento: <Text strong style={{ color: '#f5222d' }}>{stagnantCount}</Text></Text>}
           </Space>
         </div>
-        <Space>
-          <Select allowClear placeholder="Categoría" style={{ width: 130 }}
-            onChange={v => setFilterCategory(v)}>
+        <Space wrap>
+          {/* Category filter */}
+          <Select
+            mode="multiple"
+            placeholder={<span><FilterOutlined /> Categorías</span>}
+            value={filterCategories}
+            onChange={setFilterCategories}
+            allowClear
+            style={{ minWidth: 160 }}
+            maxTagCount={1}
+          >
             {Object.entries(CATEGORY_LABEL).map(([k, v]) => <Option key={k} value={k}>{v}</Option>)}
           </Select>
-          <Select allowClear placeholder="Estado" style={{ width: 150 }}
-            onChange={v => setFilterStatus(v as ItemStatus | undefined)}>
-            {Object.entries(STATUS_LABEL).map(([k, v]) => <Option key={k} value={k}>{v}</Option>)}
-          </Select>
+          <Tooltip title="Mostrar solo sin vendedor (100% comisión)">
+            <Button
+              icon={<FilterOutlined />}
+              type={noSellerFilter ? 'primary' : 'default'}
+              onClick={() => setNoSellerFilter(v => !v)}
+              style={noSellerFilter ? { background: '#531dab', borderColor: '#531dab' } : {}}
+            >
+              Sin vendedor
+            </Button>
+          </Tooltip>
+          <Tooltip title={showClosed ? 'Ocultar vendidos/archivados' : 'Mostrar vendidos/archivados'}>
+            <Button
+              icon={<FilterOutlined />}
+              type={showClosed ? 'primary' : 'default'}
+              onClick={() => setShowClosed(v => !v)}
+              style={showClosed ? { background: '#595959', borderColor: '#595959' } : {}}
+            >
+              {showClosed ? 'Ocultar cerrados' : 'Ver cerrados'}
+            </Button>
+          </Tooltip>
           <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}
             style={{ background: '#c41d7f', borderColor: '#c41d7f' }}>
             Agregar artículo
@@ -291,7 +349,7 @@ export default function Inventory() {
       </div>
 
       <Table
-        dataSource={items} columns={columns} rowKey="id" loading={isLoading}
+        dataSource={filteredItems} columns={columns} rowKey="id" loading={isLoading}
         size="small" pagination={{ pageSize: 25 }}
         rowClassName={r => r.status === 'listed' && daysAgo(r.listed_at)! > 30 ? 'stagnant-row' : ''}
       />
@@ -302,9 +360,29 @@ export default function Inventory() {
         open={!!drawerItem}
         onClose={() => setDrawerItem(null)}
         width={440}
+        extra={
+          drawerItem && (
+            <Button
+              icon={<EditOutlined />}
+              onClick={() => { openEdit(drawerItem); setDrawerItem(null) }}
+              style={{ borderColor: '#c41d7f', color: '#c41d7f' }}
+            >
+              Editar
+            </Button>
+          )
+        }
       >
         {drawerItem && (
           <>
+            {SOLD_STATUSES.includes(drawerItem.status) && (
+              <Alert
+                type="warning"
+                showIcon
+                message="Artículo ya vendido"
+                description="Los cambios son solo informativos y no afectan el pedido activo."
+                style={{ marginBottom: 12 }}
+              />
+            )}
             {/* Photo gallery */}
             {parseImages(drawerItem.images).length > 0 && (
               <div style={{ marginBottom: 16 }}>
@@ -328,6 +406,8 @@ export default function Inventory() {
               </Descriptions.Item>
               <Descriptions.Item label="Categoría">{CATEGORY_LABEL[drawerItem.category] || drawerItem.category}</Descriptions.Item>
               <Descriptions.Item label="Condición">{CONDITION_LABEL[drawerItem.condition]}</Descriptions.Item>
+              {drawerItem.gender && <Descriptions.Item label="Género">{GENDER_LABEL[drawerItem.gender] || drawerItem.gender}</Descriptions.Item>}
+              {drawerItem.no_seller && <Descriptions.Item label="Sin vendedor"><Tag color="purple">100% comisión</Tag></Descriptions.Item>}
               <Descriptions.Item label="Marca">{drawerItem.brand || '—'}</Descriptions.Item>
               <Descriptions.Item label="Talla">{drawerItem.size || '—'}</Descriptions.Item>
               <Descriptions.Item label="Color">{drawerItem.color || '—'}</Descriptions.Item>
@@ -336,9 +416,14 @@ export default function Inventory() {
               <Descriptions.Item label="Pago a vendedora">${Number(drawerItem.seller_payout || 0).toLocaleString('es-MX')} MXN</Descriptions.Item>
               <Descriptions.Item label="Comisión (30%)">${Number(drawerItem.commission || 0).toLocaleString('es-MX')} MXN</Descriptions.Item>
               <Descriptions.Item label="Vendedora">
-                {sellerMap[drawerItem.seller_id]
-                  ? <span>{sellerMap[drawerItem.seller_id].full_name} <LinkOutlined /></span>
-                  : `#${drawerItem.seller_id}`}
+                {drawerItem.no_seller
+                  ? <Tag color="purple">Sin vendedor</Tag>
+                  : drawerItem.seller_id && sellerMap[drawerItem.seller_id]
+                    ? <a onClick={() => { setDrawerItem(null); navigate('/sellers') }}>
+                        {sellerMap[drawerItem.seller_id].full_name} <LinkOutlined />
+                      </a>
+                    : '—'
+                }
               </Descriptions.Item>
               <Descriptions.Item label="Recibido">{drawerItem.received_at ? dayjs(drawerItem.received_at).format('DD/MM/YYYY') : '—'}</Descriptions.Item>
               <Descriptions.Item label="Publicado">
@@ -352,6 +437,50 @@ export default function Inventory() {
           </>
         )}
       </Drawer>
+
+      {/* Stagnant items section */}
+      {stagnant.length > 0 && (
+        <Card
+          style={{ marginTop: 20, borderRadius: 12, borderColor: '#ffccc7' }}
+          title={
+            <span>
+              <WarningOutlined style={{ color: '#f5222d', marginRight: 6 }} />
+              Artículos sin movimiento (+30 días publicados)
+              <Tag color="red" style={{ marginLeft: 8 }}>{stagnant.length}</Tag>
+            </span>
+          }
+        >
+          <Table
+            dataSource={stagnant}
+            rowKey="id"
+            size="small"
+            pagination={false}
+            columns={[
+              {
+                title: 'SKU', dataIndex: 'sku', width: 130,
+                render: (v: string, r: any) => (
+                  <a
+                    style={{ color: '#c41d7f', fontFamily: 'monospace' }}
+                    onClick={() => {
+                      const found = items.find((i: Item) => i.id === r.id)
+                      if (found) setDrawerItem(found)
+                    }}
+                  >
+                    {v} <ArrowRightOutlined style={{ fontSize: 10 }} />
+                  </a>
+                ),
+              },
+              { title: 'Artículo', dataIndex: 'title', ellipsis: true },
+              { title: 'Categoría', dataIndex: 'category', width: 110, render: (v: string) => CATEGORY_LABEL[v] || v },
+              { title: 'Precio', dataIndex: 'selling_price', width: 110, render: (v: number) => `$${Number(v).toLocaleString('es-MX')}` },
+              {
+                title: 'Días publicado', dataIndex: 'days_listed', width: 130,
+                render: (v: number) => <Tag color="red">{v} días</Tag>,
+              },
+            ]}
+          />
+        </Card>
+      )}
 
       {/* Add/Edit modal */}
       <Modal
@@ -367,9 +496,21 @@ export default function Inventory() {
           <Form.Item name="description" label="Descripción">
             <Input.TextArea rows={2} />
           </Form.Item>
-          <Form.Item name="seller_id" label="Vendedora" rules={[{ required: !editItem }]}>
-            <Select placeholder="Selecciona vendedora" disabled={!!editItem} showSearch optionFilterProp="label"
-              options={sellers.map(s => ({ value: s.id, label: `${s.full_name} (${s.phone})` }))} />
+          <Form.Item name="no_seller" valuePropName="checked" style={{ marginBottom: 8 }}>
+            <Checkbox>
+              <Space size={4}>
+                Sin vendedor
+                <Text type="secondary" style={{ fontSize: 11 }}>(comisión 100% — sin pago a vendedora)</Text>
+              </Space>
+            </Checkbox>
+          </Form.Item>
+          <Form.Item shouldUpdate={(prev, cur) => prev.no_seller !== cur.no_seller} noStyle>
+            {({ getFieldValue }) => !getFieldValue('no_seller') && (
+              <Form.Item name="seller_id" label="Vendedora" rules={[{ required: !editItem }]}>
+                <Select placeholder="Selecciona vendedora" disabled={!!editItem} showSearch optionFilterProp="label"
+                  options={sellers.map(s => ({ value: s.id, label: `${s.full_name} (${s.phone})` }))} />
+              </Form.Item>
+            )}
           </Form.Item>
           <Space style={{ width: '100%' }} styles={{ item: { flex: 1 } }}>
             <Form.Item name="category" label="Categoría" rules={[{ required: true }]}>
@@ -377,6 +518,11 @@ export default function Inventory() {
             </Form.Item>
             <Form.Item name="condition" label="Condición" rules={[{ required: true }]}>
               <Select>{Object.entries(CONDITION_LABEL).map(([k, v]) => <Option key={k} value={k}>{v}</Option>)}</Select>
+            </Form.Item>
+            <Form.Item name="gender" label="Género">
+              <Select allowClear placeholder="—">
+                {Object.entries(GENDER_LABEL).map(([k, v]) => <Option key={k} value={k}>{v}</Option>)}
+              </Select>
             </Form.Item>
           </Space>
           <Space style={{ width: '100%' }} styles={{ item: { flex: 1 } }}>

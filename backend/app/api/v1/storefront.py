@@ -99,6 +99,32 @@ class CheckoutRequest(BaseModel):
     shipping_address: Optional[str] = None
 
 
+# ── Order tracking (public, no auth) ─────────────────────────────────────────
+@router.get("/order-tracking/{order_number}")
+def order_tracking(order_number: str, db: Session = Depends(get_db)):
+    """Public endpoint — buyer looks up their order by number, no login required."""
+    order = db.query(Order).filter(Order.order_number == order_number.upper()).first()
+    if not order:
+        raise HTTPException(status_code=404, detail="Pedido no encontrado")
+    item = db.query(Item).filter(Item.id == order.item_id).first()
+    images = [u for u in (item.images or "").split(",") if u] if item else []
+    return {
+        "order_number": order.order_number,
+        "status": order.status.value,
+        "buyer_name": order.buyer_name,
+        "amount": float(order.amount),
+        "shipping_method": order.shipping_method.value if order.shipping_method else None,
+        "tracking_number": order.tracking_number,
+        "shipping_carrier": order.shipping_carrier,
+        "created_at": order.created_at.isoformat(),
+        "item": {
+            "title": item.title if item else "—",
+            "sku": item.sku if item else "—",
+            "image": images[0] if images else None,
+        },
+    }
+
+
 # ── Catalog (public, no auth) ─────────────────────────────────────────────────
 @router.get("/items")
 def catalog(

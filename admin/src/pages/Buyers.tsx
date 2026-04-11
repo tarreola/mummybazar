@@ -1,13 +1,13 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   Table, Button, Modal, Form, Input, Space, Typography, Tag, Tooltip,
   message, Drawer, Descriptions, Rate, Statistic, Row, Col, Card, List,
 } from 'antd'
-import { PlusOutlined, EditOutlined, WhatsAppOutlined, BarChartOutlined, BellOutlined } from '@ant-design/icons'
+import { PlusOutlined, EditOutlined, WhatsAppOutlined, BarChartOutlined, BellOutlined, CheckCircleOutlined, SearchOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import dayjs from 'dayjs'
-import { getBuyers, createBuyer, updateBuyer, getOrders } from '../api/client'
+import { getBuyers, createBuyer, updateBuyer, getOrders, approveBuyer } from '../api/client'
 import api from '../api/client'
 import type { Buyer, Order } from '../types'
 
@@ -24,6 +24,7 @@ const ORDER_STATUS_COLOR: Record<string, string> = {
 
 export default function Buyers() {
   const qc = useQueryClient()
+  const [search, setSearch] = useState('')
   const [modalOpen, setModalOpen] = useState(false)
   const [editBuyer, setEditBuyer] = useState<Buyer | null>(null)
   const [profileBuyer, setProfileBuyer] = useState<Buyer | null>(null)
@@ -36,6 +37,16 @@ export default function Buyers() {
     queryFn: () => getBuyers().then(r => r.data),
   })
 
+  const filteredBuyers = useMemo(() => {
+    if (!search.trim()) return buyers
+    const q = search.toLowerCase()
+    return buyers.filter(b =>
+      b.full_name.toLowerCase().includes(q) ||
+      b.phone.includes(q) ||
+      (b.email || '').toLowerCase().includes(q)
+    )
+  }, [buyers, search])
+
   const createMutation = useMutation({
     mutationFn: (data: object) => createBuyer(data),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['buyers'] }); setModalOpen(false); form.resetFields() },
@@ -46,6 +57,12 @@ export default function Buyers() {
     mutationFn: ({ id, data }: { id: number; data: object }) => updateBuyer(id, data),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['buyers'] }); setModalOpen(false) },
     onError: () => message.error('Error al actualizar'),
+  })
+
+  const approveMutation = useMutation({
+    mutationFn: (id: number) => approveBuyer(id),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['buyers'] }); message.success('Compradora aprobada') },
+    onError: () => message.error('Error al aprobar'),
   })
 
   const remindMutation = useMutation({
@@ -88,6 +105,24 @@ export default function Buyers() {
     { title: 'Email', dataIndex: 'email', render: v => v || '—' },
     { title: 'Colonia', dataIndex: 'neighborhood', render: v => v || '—' },
     {
+      title: 'Pedidos', width: 80,
+      render: (_, r) => <Tag color={(r as any).total_orders > 0 ? 'blue' : 'default'}>{(r as any).total_orders ?? 0}</Tag>,
+    },
+    {
+      title: 'Aprobada', dataIndex: 'is_approved', width: 100,
+      render: (v: boolean, r) => v
+        ? <Tag color="green" icon={<CheckCircleOutlined />}>Sí</Tag>
+        : (
+          <Tag
+            color="orange"
+            style={{ cursor: 'pointer' }}
+            onClick={() => approveMutation.mutate(r.id)}
+          >
+            Pendiente ✓
+          </Tag>
+        ),
+    },
+    {
       title: 'Calificación', dataIndex: 'rating', width: 140,
       render: (v, r) => (
         <Rate value={v || 0} count={5} style={{ fontSize: 14 }}
@@ -115,13 +150,23 @@ export default function Buyers() {
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
         <Title level={4} style={{ color: '#c41d7f', margin: 0 }}>Compradoras</Title>
-        <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}
-          style={{ background: '#c41d7f', borderColor: '#c41d7f' }}>
-          Nueva compradora
-        </Button>
+        <Space>
+          <Input
+            placeholder="Buscar compradora…"
+            prefix={<SearchOutlined style={{ color: '#c41d7f' }} />}
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            allowClear
+            style={{ width: 220 }}
+          />
+          <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}
+            style={{ background: '#c41d7f', borderColor: '#c41d7f' }}>
+            Nueva compradora
+          </Button>
+        </Space>
       </div>
 
-      <Table dataSource={buyers} columns={columns} rowKey="id" loading={isLoading}
+      <Table dataSource={filteredBuyers} columns={columns} rowKey="id" loading={isLoading}
         size="small" pagination={{ pageSize: 20 }} />
 
       {/* Buyer profile drawer */}

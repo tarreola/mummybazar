@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Query
 from sqlalchemy.orm import Session
-from sqlalchemy import func
+from sqlalchemy import func, asc, desc
 from datetime import datetime, timezone
 from typing import List, Optional
 from decimal import Decimal
@@ -10,7 +10,7 @@ import cloudinary.uploader
 from app.core.database import get_db
 from app.core.config import settings
 from app.api.deps import get_current_user
-from app.models.item import Item, ItemStatus, ItemCategory
+from app.models.item import Item, ItemStatus, ItemCategory, ItemCondition
 from app.schemas.item import ItemCreate, ItemUpdate, ItemOut
 
 router = APIRouter(prefix="/items", tags=["items"])
@@ -38,7 +38,9 @@ def _calculate_pricing(selling_price: Decimal):
 def list_items(
     status: Optional[ItemStatus] = None,
     category: Optional[ItemCategory] = None,
+    condition: Optional[ItemCondition] = None,
     seller_id: Optional[int] = None,
+    sort: Optional[str] = Query(None, description="price_asc | price_desc | listed_asc | listed_desc"),
     skip: int = 0,
     limit: int = 100,
     db: Session = Depends(get_db),
@@ -49,14 +51,33 @@ def list_items(
         q = q.filter(Item.status == status)
     if category:
         q = q.filter(Item.category == category)
+    if condition:
+        q = q.filter(Item.condition == condition)
     if seller_id:
         q = q.filter(Item.seller_id == seller_id)
-    return q.order_by(Item.created_at.desc()).offset(skip).limit(limit).all()
+
+    if sort == "price_asc":
+        q = q.order_by(asc(Item.selling_price))
+    elif sort == "price_desc":
+        q = q.order_by(desc(Item.selling_price))
+    elif sort == "listed_asc":
+        q = q.order_by(asc(Item.listed_at))
+    elif sort == "listed_desc":
+        q = q.order_by(desc(Item.listed_at))
+    else:
+        q = q.order_by(Item.created_at.desc())
+
+    return q.offset(skip).limit(limit).all()
 
 
 @router.post("/", response_model=ItemOut)
 def create_item(payload: ItemCreate, db: Session = Depends(get_db), _=Depends(get_current_user)):
-    commission, seller_payout = _calculate_pricing(payload.selling_price)
+    if payload.no_seller:
+        # No seller: 100% commission, zero payout
+        commission = payload.selling_price
+        seller_payout = Decimal("0")
+    else:
+        commission, seller_payout = _calculate_pricing(payload.selling_price)
     item = Item(
         **payload.model_dump(),
         sku=_generate_sku(db),
