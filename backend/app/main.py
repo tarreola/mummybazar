@@ -21,8 +21,8 @@ ALLOWED_ORIGINS = [
     "https://www.elroperodemar.com",
     "https://admin.elroperodemar.com",
     # Production — Vercel default URLs
-    "https://mummybazar-storefront.vercel.app",
-    "https://mummybazar-admin.vercel.app",
+    "https://mummybazar.vercel.app",
+    "https://mummybazar-12dx.vercel.app",
 ]
 
 app.add_middleware(
