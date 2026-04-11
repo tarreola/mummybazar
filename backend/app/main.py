@@ -16,10 +16,13 @@ ALLOWED_ORIGINS = [
     "http://localhost:5173",
     "http://localhost:5174",
     "http://localhost:3000",
-    # Production
+    # Production — custom domain
     "https://elroperodemar.com",
     "https://www.elroperodemar.com",
     "https://admin.elroperodemar.com",
+    # Production — Vercel default URLs
+    "https://mummybazar-storefront.vercel.app",
+    "https://mummybazar-admin.vercel.app",
 ]
 
 app.add_middleware(
