@@ -197,7 +197,7 @@ const { data: items = [], isLoading } = useQuery<Item[]>({
       render: (v) => {
         const [first] = parseImages(v)
         return first
-          ? <Image src={first} width={40} height={50} style={{ objectFit: 'cover', borderRadius: 4 }} preview={{ mask: false }} />
+          ? <img src={first} width={40} height={50} style={{ objectFit: 'cover', borderRadius: 4, display: 'block' }} />
           : <div style={{ width: 40, height: 50, background: '#f5f5f5', borderRadius: 4, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><CameraOutlined style={{ color: '#ccc' }} /></div>
       },
     },
