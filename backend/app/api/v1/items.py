@@ -126,6 +126,15 @@ def update_item(item_id: int, payload: ItemUpdate, db: Session = Depends(get_db)
     return item
 
 
+@router.delete("/{item_id}", status_code=204)
+def delete_item(item_id: int, db: Session = Depends(get_db), _=Depends(get_current_user)):
+    item = db.query(Item).filter(Item.id == item_id).first()
+    if not item:
+        raise HTTPException(status_code=404, detail="Item not found")
+    db.delete(item)
+    db.commit()
+
+
 @router.post("/{item_id}/images", response_model=ItemOut)
 async def upload_image(
     item_id: int,

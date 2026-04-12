@@ -14,7 +14,7 @@ import type { ColumnsType } from 'antd/es/table'
 import type { UploadFile } from 'antd/es/upload'
 import dayjs from 'dayjs'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { getItems, createItem, updateItem, getSellers, uploadItemImage, deleteItemImage } from '../api/client'
+import { getItems, createItem, updateItem, getSellers, uploadItemImage, deleteItemImage, deleteItem } from '../api/client'
 import api from '../api/client'
 import type { Item, ItemStatus, Seller } from '../types'
 import { enhanceImage } from '../hooks/useImageEnhance'
@@ -164,6 +164,16 @@ export default function Inventory() {
       setFileList([])
     },
     onError: () => message.error('Error al actualizar'),
+  })
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: number) => deleteItem(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['items'] })
+      setDrawerItem(null)
+      message.success('Artículo eliminado')
+    },
+    onError: () => message.error('Error al eliminar artículo'),
   })
 
   const openCreate = () => { setEditItem(null); form.resetFields(); setFileList([]); setModalOpen(true) }
@@ -434,6 +444,23 @@ export default function Inventory() {
               <Descriptions.Item label="Vendido">{drawerItem.sold_at ? dayjs(drawerItem.sold_at).format('DD/MM/YYYY') : '—'}</Descriptions.Item>
               <Descriptions.Item label="Notas">{drawerItem.notes || '—'}</Descriptions.Item>
             </Descriptions>
+
+            <Divider />
+            <Popconfirm
+              title="¿Eliminar este artículo?"
+              description="Esta acción no se puede deshacer."
+              onConfirm={() => deleteMutation.mutate(drawerItem.id)}
+              okText="Eliminar" okButtonProps={{ danger: true }}
+              cancelText="Cancelar"
+            >
+              <Button
+                danger block
+                icon={<DeleteOutlined />}
+                loading={deleteMutation.isPending}
+              >
+                Eliminar artículo
+              </Button>
+            </Popconfirm>
           </>
         )}
       </Drawer>

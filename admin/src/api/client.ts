@@ -79,6 +79,7 @@ export const uploadItemImage = (id: number, file: File) => {
 }
 export const deleteItemImage = (id: number, url: string) =>
   api.delete(`/items/${id}/images`, { params: { url } })
+export const deleteItem = (id: number) => api.delete(`/items/${id}`)
 
 // ── Orders ────────────────────────────────────────────────────────────────────
 export const getOrders = (params?: object) => api.get('/orders/', { params })
