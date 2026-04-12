@@ -22,18 +22,6 @@ def login(payload: LoginRequest, db: Session = Depends(get_db)):
 
 
 
-@router.post("/update-admin", response_model=UserOut)
-def update_admin(db: Session = Depends(get_db)):
-    """Temporary: updates admin credentials. Remove after use."""
-    user = db.query(User).filter(User.is_superuser == True).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="Admin not found")
-    user.email = "admin@elroperodemar.com"
-    user.hashed_password = hash_password("MAR.17092024")
-    db.commit()
-    db.refresh(user)
-    return user
-
 
 @router.post("/users", response_model=UserOut, dependencies=[Depends(require_superuser)])
 def create_user(payload: UserCreate, db: Session = Depends(get_db)):
