@@ -65,9 +65,8 @@ export default function Inventory() {
   const [fileList, setFileList] = useState<PhotoFile[]>([])
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [uploadingImages, setUploadingImages] = useState(false)
-  const [showClosed, setShowClosed] = useState(false)
-  const [filterCategories, setFilterCategories] = useState<string[]>([])
   const [noSellerFilter, setNoSellerFilter] = useState(false)
+  const [search, setSearch] = useState('')
   const [form] = Form.useForm()
 
 const { data: items = [], isLoading } = useQuery<Item[]>({
@@ -173,13 +172,19 @@ const { data: items = [], isLoading } = useQuery<Item[]>({
 
   const CLOSED_ITEM_STATUSES: ItemStatus[] = ['sold', 'shipped', 'delivered', 'returned', 'archived']
   const filteredItems = useMemo(() => {
-    let result = items
-    if (!showClosed) result = result.filter(i => !CLOSED_ITEM_STATUSES.includes(i.status))
-    if (filterCategories.length > 0) result = result.filter(i => filterCategories.includes(i.category))
+    let result = items.filter(i => !CLOSED_ITEM_STATUSES.includes(i.status))
     if (noSellerFilter) result = result.filter(i => i.no_seller)
     if (filterSellerId) result = result.filter(i => i.seller_id === filterSellerId)
+    if (search) {
+      const q = search.toLowerCase()
+      result = result.filter(i =>
+        i.title.toLowerCase().includes(q) ||
+        i.sku.toLowerCase().includes(q) ||
+        (i.brand || '').toLowerCase().includes(q)
+      )
+    }
     return result
-  }, [items, showClosed, filterCategories, noSellerFilter, filterSellerId])
+  }, [items, noSellerFilter, filterSellerId, search])
 
   // How many more photos can be added in the modal
   const existingCount = editItem ? parseImages(editItem.images).length : 0
@@ -283,36 +288,21 @@ const { data: items = [], isLoading } = useQuery<Item[]>({
           </Space>
         </div>
         <Space wrap>
-          {/* Category filter */}
-          <Select
-            mode="multiple"
-            placeholder={<span><FilterOutlined /> Categorías</span>}
-            value={filterCategories}
-            onChange={setFilterCategories}
+          <Input.Search
+            placeholder="Buscar SKU, artículo, marca…"
             allowClear
-            style={{ minWidth: 160 }}
-            maxTagCount={1}
-          >
-            {Object.entries(CATEGORY_LABEL).map(([k, v]) => <Option key={k} value={k}>{v}</Option>)}
-          </Select>
-          <Tooltip title="Mostrar solo sin vendedor (100% comisión)">
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            style={{ width: 240 }}
+          />
+          <Tooltip title="Mostrar solo inventario propio (sin vendedora)">
             <Button
               icon={<FilterOutlined />}
               type={noSellerFilter ? 'primary' : 'default'}
               onClick={() => setNoSellerFilter(v => !v)}
               style={noSellerFilter ? { background: '#531dab', borderColor: '#531dab' } : {}}
             >
-              Sin vendedor
-            </Button>
-          </Tooltip>
-          <Tooltip title={showClosed ? 'Ocultar vendidos/archivados' : 'Mostrar vendidos/archivados'}>
-            <Button
-              icon={<FilterOutlined />}
-              type={showClosed ? 'primary' : 'default'}
-              onClick={() => setShowClosed(v => !v)}
-              style={showClosed ? { background: '#595959', borderColor: '#595959' } : {}}
-            >
-              {showClosed ? 'Ocultar cerrados' : 'Ver cerrados'}
+              Inventario Admin
             </Button>
           </Tooltip>
           <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}

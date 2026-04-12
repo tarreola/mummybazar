@@ -2,6 +2,7 @@ import { Layout, Menu, Avatar, Typography, Button } from 'antd'
 import {
   DashboardOutlined, ShoppingOutlined, TeamOutlined,
   OrderedListOutlined, WhatsAppOutlined, LogoutOutlined, UserOutlined,
+  HistoryOutlined,
 } from '@ant-design/icons'
 import { useNavigate, useLocation, Outlet } from 'react-router-dom'
 import { useAuth } from '../store/auth'
@@ -19,6 +20,7 @@ const NAV_ITEMS = [
   { key: '/inventory', icon: <ShoppingOutlined />, label: 'Inventario' },
   { key: '/sellers', icon: <TeamOutlined />, label: 'Vendedoras' },
   { key: '/orders', icon: <OrderedListOutlined />, label: 'Pedidos' },
+  { key: '/historic-orders', icon: <HistoryOutlined />, label: 'Histórico Pedidos' },
   { key: '/whatsapp', icon: <WhatsAppOutlined />, label: 'WhatsApp Hub' },
 ]
 

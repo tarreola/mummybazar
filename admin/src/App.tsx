@@ -6,6 +6,7 @@ import Dashboard from './pages/Dashboard'
 import Inventory from './pages/Inventory'
 import Sellers from './pages/Sellers'
 import Orders from './pages/Orders'
+import HistoricOrders from './pages/HistoricOrders'
 import WhatsApp from './pages/WhatsApp'
 
 function RequireAuth() {
@@ -27,6 +28,7 @@ export default function App() {
               <Route path="/sellers" element={<Sellers />} />
               <Route path="/buyers" element={<Navigate to="/whatsapp" replace />} />
               <Route path="/orders" element={<Orders />} />
+              <Route path="/historic-orders" element={<HistoricOrders />} />
               <Route path="/whatsapp" element={<WhatsApp />} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Route>
