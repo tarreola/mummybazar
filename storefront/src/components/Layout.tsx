@@ -22,9 +22,8 @@ export default function Layout() {
           height: 60, gap: 16,
         }}>
           {/* Logo */}
-          <Link to="/" style={{ display: 'flex', alignItems: 'baseline', gap: 4 }}>
-            <span style={{ color: NAVY, fontWeight: 700, fontSize: 16 }}>el ropero de </span>
-            <span style={{ color: RED, fontWeight: 900, fontSize: 20, letterSpacing: 1 }}>MAR</span>
+          <Link to="/" style={{ display: 'flex', alignItems: 'center' }}>
+            <img src="/logo.png" alt="El Ropero de Mar" style={{ height: 48, width: 'auto', objectFit: 'contain' }} />
           </Link>
 
           {/* Nav */}

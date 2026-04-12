@@ -36,11 +36,8 @@ export default function Login() {
     }}>
       <Card style={{ width: 380, borderRadius: 16, boxShadow: '0 8px 32px rgba(26,58,107,0.3)' }}>
         <div style={{ textAlign: 'center', marginBottom: 32 }}>
-          <div style={{ marginBottom: 8 }}>
-            <span style={{ color: NAVY, fontSize: 20, fontWeight: 700 }}>el ropero de </span>
-            <span style={{ color: RED, fontSize: 26, fontWeight: 900, letterSpacing: 2 }}>MAR</span>
-          </div>
-          <Text type="secondary">Panel de administración</Text>
+          <img src="/logo.png" alt="El Ropero de Mar" style={{ width: 180, height: 'auto', objectFit: 'contain', marginBottom: 8 }} />
+          <div><Text type="secondary">Panel de administración</Text></div>
         </div>
         <Form layout="vertical" onFinish={onFinish}>
           <Form.Item name="email" rules={[{ required: true, type: 'email', message: 'Ingresa tu correo' }]}>

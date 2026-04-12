@@ -40,16 +40,9 @@ export default function AppLayout() {
         }}
       >
         {/* Logo */}
-        <div style={{ padding: '20px 20px 16px', borderBottom: `1px solid ${BORDER}` }}>
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: 2, lineHeight: 1.1 }}>
-            <Text style={{ color: NAVY, fontSize: 13, fontWeight: 700, letterSpacing: 0 }}>
-              el ropero de{' '}
-            </Text>
-            <Text style={{ color: RED, fontSize: 17, fontWeight: 900, letterSpacing: 1 }}>
-              MAR
-            </Text>
-          </div>
-          <Text type="secondary" style={{ fontSize: 11 }}>Admin Panel</Text>
+        <div style={{ padding: '16px 20px', borderBottom: `1px solid ${BORDER}`, textAlign: 'center' }}>
+          <img src="/logo.png" alt="El Ropero de Mar" style={{ width: 160, height: 'auto', objectFit: 'contain' }} />
+          <div><Text type="secondary" style={{ fontSize: 11 }}>Admin Panel</Text></div>
         </div>
 
         <Menu
