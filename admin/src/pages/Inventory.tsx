@@ -165,12 +165,14 @@ const { data: items = [], isLoading } = useQuery<Item[]>({
     qc.invalidateQueries({ queryKey: ['items'] })
   }
 
-  const total = items.length
+  const CLOSED_ITEM_STATUSES: ItemStatus[] = ['sold', 'shipped', 'delivered', 'returned', 'archived']
+  const total = items.filter(i => !CLOSED_ITEM_STATUSES.includes(i.status)).length
+  const received = items.filter(i => i.status === 'received').length
+  const inspected = items.filter(i => i.status === 'inspected').length
   const listed = items.filter(i => i.status === 'listed').length
   const stagnantCount = items.filter(i => i.status === 'listed' && daysAgo(i.listed_at) !== null && daysAgo(i.listed_at)! > 30).length
   const sellerMap = Object.fromEntries(sellers.map(s => [s.id, s]))
 
-  const CLOSED_ITEM_STATUSES: ItemStatus[] = ['sold', 'shipped', 'delivered', 'returned', 'archived']
   const filteredItems = useMemo(() => {
     let result = items.filter(i => !CLOSED_ITEM_STATUSES.includes(i.status))
     if (noSellerFilter) result = result.filter(i => i.no_seller)
@@ -283,6 +285,8 @@ const { data: items = [], isLoading } = useQuery<Item[]>({
           <Title level={4} style={{ color: '#1a3a6b', margin: 0 }}>Inventario</Title>
           <Space size={16} style={{ marginTop: 4 }}>
             <Text type="secondary">Total: <Text strong>{total}</Text></Text>
+            <Text type="secondary">Recibido: <Text strong style={{ color: '#1677ff' }}>{received}</Text></Text>
+            <Text type="secondary">Inspeccionando: <Text strong style={{ color: '#13c2c2' }}>{inspected}</Text></Text>
             <Text type="secondary">Publicados: <Text strong style={{ color: '#52c41a' }}>{listed}</Text></Text>
             {stagnantCount > 0 && <Text type="secondary">Sin movimiento: <Text strong style={{ color: '#f5222d' }}>{stagnantCount}</Text></Text>}
           </Space>
