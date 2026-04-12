@@ -61,7 +61,6 @@ const STATUS_ICON: Record<OrderStatus, React.ReactNode> = {
 const FLOW_STEPS: OrderStatus[] = ['pending_payment', 'paid', 'preparing', 'shipped']
 
 const ACTIVE_STATUSES: OrderStatus[] = ['pending_payment', 'paid', 'preparing', 'shipped']
-const CLOSED_STATUSES: OrderStatus[] = ['closed', 'cancelled', 'refunded']
 
 const TAB_GROUPS: { key: string; label: string; statuses: OrderStatus[]; pendingPayoutOnly?: boolean }[] = [
   { key: 'all',             label: 'Todos',                       statuses: ACTIVE_STATUSES },
@@ -71,7 +70,6 @@ const TAB_GROUPS: { key: string; label: string; statuses: OrderStatus[]; pending
   { key: 'shipped',         label: 'Enviado',                     statuses: ['shipped'] },
   { key: 'pending_payout',  label: 'Pendiente pago vendedora',    statuses: ['shipped'], pendingPayoutOnly: true },
 ]
-const CLOSED_TAB: { key: string; label: string; statuses: OrderStatus[]; pendingPayoutOnly?: boolean } = { key: 'closed', label: 'Cerrados', statuses: CLOSED_STATUSES }
 
 // ── Timing helper ─────────────────────────────────────────────────────────────
 function daysSince(dateStr?: string | null): number {
@@ -296,8 +294,7 @@ export default function Orders() {
   }
 
   // ── Filtered orders by tab + search ──────────────────────────────────────────
-  const allTabGroups = [...TAB_GROUPS, CLOSED_TAB]
-  const tabGroup = allTabGroups.find(t => t.key === activeTab) ?? TAB_GROUPS[0]
+  const tabGroup = TAB_GROUPS.find(t => t.key === activeTab) ?? TAB_GROUPS[0]
   const orders = useMemo(() => {
     let result = allOrders.filter(o => tabGroup.statuses.includes(o.status))
     if (tabGroup.pendingPayoutOnly) result = result.filter(o => !o.seller_paid)
@@ -321,8 +318,10 @@ export default function Orders() {
   }
 
   // ── Summary KPIs ──────────────────────────────────────────────────────────────
+  const openOrders = allOrders.filter(o => ACTIVE_STATUSES.includes(o.status))
   const confirmedOrders = allOrders.filter(o => ['paid', 'preparing', 'shipped', 'delivered'].includes(o.status))
   const totalRevenue = confirmedOrders.reduce((s, o) => s + Number(o.amount), 0)
+  const totalCommission = confirmedOrders.reduce((s, o) => s + Number(o.commission_amount || 0), 0)
   const pendingCount = allOrders.filter(o => o.status === 'pending_payment').length
   const pendingPayouts = allOrders
     .filter(o => o.status === 'shipped' && !o.seller_paid)
@@ -428,73 +427,47 @@ export default function Orders() {
       </div>
 
       {/* KPI row */}
-      <Row gutter={[12, 12]} style={{ marginBottom: 16 }}>
+      <Row gutter={[8, 8]} style={{ marginBottom: 12 }}>
         {[
-          { title: 'Total pedidos', value: allOrders.length },
+          { title: 'Pedidos abiertos', value: openOrders.length },
           { title: 'Ventas confirmadas', value: `$${totalRevenue.toLocaleString('es-MX')}`, valueStyle: { color: '#389e0d' } },
+          { title: 'Comisión', value: `$${totalCommission.toLocaleString('es-MX')}`, valueStyle: { color: '#1a3a6b' } },
           { title: 'Pago pendiente', value: pendingCount, valueStyle: pendingCount > 0 ? { color: '#f5222d' } : {} },
-          { title: 'Pagos pendientes a vendedoras', value: `$${pendingPayouts.toLocaleString('es-MX')}`, valueStyle: { color: '#d46b08' } },
+          { title: 'Pend. vendedoras', value: `$${pendingPayouts.toLocaleString('es-MX')}`, valueStyle: { color: '#d46b08' } },
         ].map(s => (
-          <Col xs={12} lg={6} key={s.title}>
-            <Card size="small" style={{ borderRadius: 10, borderColor: '#c8d8f0' }}>
-              <Statistic title={s.title} value={s.value} valueStyle={{ fontSize: 18, ...(s.valueStyle || {}) }} />
+          <Col xs={12} sm={8} lg={Math.floor(24/5) as any} key={s.title} style={{ flex: 1 }}>
+            <Card size="small" style={{ borderRadius: 8, borderColor: '#c8d8f0' }}>
+              <Statistic title={<span style={{ fontSize: 11 }}>{s.title}</span>} value={s.value} valueStyle={{ fontSize: 16, ...(s.valueStyle || {}) }} />
             </Card>
           </Col>
         ))}
       </Row>
 
-      {/* Search */}
-      <div style={{ marginBottom: 12 }}>
+      {/* Search + Tabs in one row */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 4, flexWrap: 'wrap' }}>
         <Input
-          placeholder="Buscar compradora, vendedora, artículo, SKU…"
+          placeholder="Buscar compradora, artículo, SKU…"
           prefix={<SearchOutlined style={{ color: '#1a3a6b' }} />}
           value={filterSearch}
           onChange={e => setFilterSearch(e.target.value)}
           allowClear
-          style={{ width: 320 }}
+          style={{ width: 260 }}
+        />
+        <Tabs
+          activeKey={activeTab}
+          onChange={setActiveTab}
+          style={{ flex: 1, marginBottom: 0 }}
+          items={TAB_GROUPS.map(t => ({
+            key: t.key,
+            label: (
+              <span>
+                {t.label}
+                <Tag style={{ marginLeft: 4, fontSize: 11 }}>{tabCount(t)}</Tag>
+              </span>
+            ),
+          }))}
         />
       </div>
-
-      {/* Tabs */}
-      <Tabs
-        activeKey={activeTab}
-        onChange={setActiveTab}
-        tabBarExtraContent={{
-          right: (
-            <div
-              style={{
-                padding: '0 16px',
-                height: 40,
-                display: 'flex',
-                alignItems: 'center',
-                cursor: 'pointer',
-                borderBottom: activeTab === 'closed' ? '2px solid #1a3a6b' : '2px solid transparent',
-                color: activeTab === 'closed' ? '#1a3a6b' : 'rgba(0,0,0,0.65)',
-                fontWeight: activeTab === 'closed' ? 600 : 400,
-                marginBottom: -1,
-                transition: 'color 0.2s',
-              }}
-              onClick={() => setActiveTab('closed')}
-            >
-              {CLOSED_TAB.label}
-              <Tag style={{ marginLeft: 6, fontSize: 11 }}>
-                {tabCount(CLOSED_TAB)}
-              </Tag>
-            </div>
-          ),
-        }}
-        items={TAB_GROUPS.map(t => ({
-          key: t.key,
-          label: (
-            <span>
-              {t.label}
-              <Tag style={{ marginLeft: 6, fontSize: 11 }}>
-                {tabCount(t)}
-              </Tag>
-            </span>
-          ),
-        }))}
-      />
 
       <Table dataSource={orders} columns={columns} rowKey="id" loading={isLoading}
         size="small" pagination={{ pageSize: 20 }} scroll={{ x: 1100 }} />

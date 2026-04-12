@@ -1,14 +1,14 @@
-import { useState, useMemo } from 'react'
+import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Table, Tag, Typography, Input, Select, Space } from 'antd'
+import { Table, Tag, Typography, Input, Space } from 'antd'
 import { CameraOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import dayjs from 'dayjs'
 import { getItems, getSellers } from '../api/client'
 import type { Item, ItemStatus, Seller } from '../types'
+import { useState } from 'react'
 
 const { Title, Text } = Typography
-const { Option } = Select
 
 const STATUS_COLOR: Record<ItemStatus, string> = {
   received: 'blue', inspected: 'cyan', listed: 'green',
@@ -37,8 +37,6 @@ function daysPublished(listedAt?: string | null, soldAt?: string | null): number
 
 export default function HistoricOrders() {
   const [search, setSearch] = useState('')
-  const [filterStatus, setFilterStatus] = useState<string>('all')
-  const [filterCategory, setFilterCategory] = useState<string>('all')
 
   const { data: items = [], isLoading } = useQuery<Item[]>({
     queryKey: ['items'],
@@ -54,8 +52,6 @@ export default function HistoricOrders() {
 
   const closedItems = useMemo(() => {
     let result = items.filter(i => CLOSED_STATUSES.includes(i.status))
-    if (filterStatus !== 'all') result = result.filter(i => i.status === filterStatus)
-    if (filterCategory !== 'all') result = result.filter(i => i.category === filterCategory)
     if (search) {
       const q = search.toLowerCase()
       result = result.filter(i =>
@@ -64,15 +60,11 @@ export default function HistoricOrders() {
         (i.brand || '').toLowerCase().includes(q)
       )
     }
-    return result.sort((a, b) => {
-      const da = a.sold_at || a.listed_at || a.created_at
-      const db = b.sold_at || b.listed_at || b.created_at
-      return dayjs(db).unix() - dayjs(da).unix()
-    })
-  }, [items, filterStatus, filterCategory, search])
+    return result
+  }, [items, search])
 
   const totalCommission = closedItems
-    .filter(i => i.status === 'sold' || i.status === 'shipped' || i.status === 'delivered')
+    .filter(i => ['sold', 'shipped', 'delivered'].includes(i.status))
     .reduce((acc, i) => acc + Number(i.commission || 0), 0)
 
   const columns: ColumnsType<Item> = [
@@ -95,6 +87,8 @@ export default function HistoricOrders() {
     {
       title: 'Categoría', dataIndex: 'category', width: 110,
       render: v => CATEGORY_LABEL[v] || v,
+      filters: Object.entries(CATEGORY_LABEL).map(([k, v]) => ({ text: v, value: k })),
+      onFilter: (value, record) => record.category === value,
     },
     {
       title: 'Precio', dataIndex: 'selling_price', width: 100,
@@ -112,7 +106,13 @@ export default function HistoricOrders() {
       sorter: (a, b) => Number(a.commission || 0) - Number(b.commission || 0),
     },
     {
-      title: 'Tiempo publicado', width: 130,
+      title: 'Tiempo publicado', width: 140,
+      defaultSortOrder: 'descend',
+      sorter: (a, b) => {
+        const da = daysPublished(a.listed_at, a.sold_at) ?? 0
+        const db = daysPublished(b.listed_at, b.sold_at) ?? 0
+        return da - db
+      },
       render: (_, r) => {
         const days = daysPublished(r.listed_at, r.sold_at)
         if (days === null) return '—'
@@ -121,6 +121,14 @@ export default function HistoricOrders() {
     },
     {
       title: 'Vendedora', dataIndex: 'seller_id', width: 140,
+      filters: [
+        { text: 'Admin', value: 'admin' },
+        ...sellers.map(s => ({ text: s.full_name, value: s.id })),
+      ],
+      onFilter: (value, record) => {
+        if (value === 'admin') return !!record.no_seller
+        return record.seller_id === value
+      },
       render: (v, r) => {
         if (r.no_seller) return <Tag color="geekblue" style={{ fontSize: 11 }}>Admin</Tag>
         const s = sellerMap[v]
@@ -129,6 +137,8 @@ export default function HistoricOrders() {
     },
     {
       title: 'Estado', dataIndex: 'status', width: 120,
+      filters: CLOSED_STATUSES.map(s => ({ text: STATUS_LABEL[s], value: s })),
+      onFilter: (value, record) => record.status === value,
       render: (v: ItemStatus) => <Tag color={STATUS_COLOR[v]}>{STATUS_LABEL[v]}</Tag>,
     },
   ]
@@ -143,27 +153,13 @@ export default function HistoricOrders() {
             <Text type="secondary">Comisión total: <Text strong style={{ color: '#1a3a6b' }}>${totalCommission.toLocaleString('es-MX')}</Text></Text>
           </Space>
         </div>
-        <Space wrap>
-          <Input.Search
-            placeholder="Buscar SKU, artículo, marca…"
-            allowClear
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            style={{ width: 240 }}
-          />
-          <Select value={filterStatus} onChange={setFilterStatus} style={{ width: 150 }}>
-            <Option value="all">Todos los estados</Option>
-            {CLOSED_STATUSES.map(s => (
-              <Option key={s} value={s}>{STATUS_LABEL[s]}</Option>
-            ))}
-          </Select>
-          <Select value={filterCategory} onChange={setFilterCategory} style={{ width: 140 }}>
-            <Option value="all">Todas las categorías</Option>
-            {Object.entries(CATEGORY_LABEL).map(([k, v]) => (
-              <Option key={k} value={k}>{v}</Option>
-            ))}
-          </Select>
-        </Space>
+        <Input.Search
+          placeholder="Buscar SKU, artículo, marca…"
+          allowClear
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          style={{ width: 260 }}
+        />
       </div>
 
       <Table
