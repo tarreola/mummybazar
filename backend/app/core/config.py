@@ -4,7 +4,7 @@ from typing import Optional
 
 class Settings(BaseSettings):
     # App
-    APP_NAME: str = "MommyBazar"
+    APP_NAME: str = "El Ropero de Mar"
     DEBUG: bool = False
     SECRET_KEY: str
     ALGORITHM: str = "HS256"

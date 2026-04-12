@@ -216,7 +216,7 @@ export default function Inventory() {
     {
       title: 'SKU', dataIndex: 'sku', width: 130,
       render: (v, r) => (
-        <a style={{ color: '#c41d7f', fontFamily: 'monospace' }} onClick={() => setDrawerItem(r)}>{v}</a>
+        <a style={{ color: '#1a3a6b', fontFamily: 'monospace' }} onClick={() => setDrawerItem(r)}>{v}</a>
       ),
     },
     {
@@ -301,7 +301,7 @@ export default function Inventory() {
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
         <div>
-          <Title level={4} style={{ color: '#c41d7f', margin: 0 }}>Inventario</Title>
+          <Title level={4} style={{ color: '#1a3a6b', margin: 0 }}>Inventario</Title>
           <Space size={16} style={{ marginTop: 4 }}>
             <Text type="secondary">Total: <Text strong>{total}</Text></Text>
             <Text type="secondary">Publicados: <Text strong style={{ color: '#52c41a' }}>{listed}</Text></Text>
@@ -342,7 +342,7 @@ export default function Inventory() {
             </Button>
           </Tooltip>
           <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}
-            style={{ background: '#c41d7f', borderColor: '#c41d7f' }}>
+            style={{ background: '#1a3a6b', borderColor: '#1a3a6b' }}>
             Agregar artículo
           </Button>
         </Space>
@@ -365,7 +365,7 @@ export default function Inventory() {
             <Button
               icon={<EditOutlined />}
               onClick={() => { openEdit(drawerItem); setDrawerItem(null) }}
-              style={{ borderColor: '#c41d7f', color: '#c41d7f' }}
+              style={{ borderColor: '#1a3a6b', color: '#1a3a6b' }}
             >
               Editar
             </Button>
@@ -392,7 +392,7 @@ export default function Inventory() {
                       <Image
                         key={i} src={url}
                         width={90} height={112}
-                        style={{ objectFit: 'cover', borderRadius: 6, border: '1px solid #ffe0f0', cursor: 'zoom-in' }}
+                        style={{ objectFit: 'cover', borderRadius: 6, border: '1px solid #c8d8f0', cursor: 'zoom-in' }}
                       />
                     ))}
                   </div>
@@ -460,7 +460,7 @@ export default function Inventory() {
                 title: 'SKU', dataIndex: 'sku', width: 130,
                 render: (v: string, r: any) => (
                   <a
-                    style={{ color: '#c41d7f', fontFamily: 'monospace' }}
+                    style={{ color: '#1a3a6b', fontFamily: 'monospace' }}
                     onClick={() => {
                       const found = items.find((i: Item) => i.id === r.id)
                       if (found) setDrawerItem(found)
@@ -544,7 +544,7 @@ export default function Inventory() {
 
           {/* ── Photos ──────────────────────────────────────────────── */}
           <Divider style={{ margin: '4px 0 12px' }}>
-            <Space size={6} style={{ color: '#c41d7f', fontSize: 13 }}>
+            <Space size={6} style={{ color: '#1a3a6b', fontSize: 13 }}>
               <CameraOutlined />Fotos del artículo
             </Space>
           </Divider>
@@ -556,7 +556,7 @@ export default function Inventory() {
                 <div key={i} style={{ position: 'relative' }}>
                   <img
                     src={url} alt=""
-                    style={{ width: 76, height: 95, objectFit: 'cover', borderRadius: 6, border: '1px solid #ffe0f0', display: 'block' }}
+                    style={{ width: 76, height: 95, objectFit: 'cover', borderRadius: 6, border: '1px solid #c8d8f0', display: 'block' }}
                   />
                   <Popconfirm
                     title="¿Eliminar esta foto?"
@@ -604,7 +604,7 @@ export default function Inventory() {
               >
                 {fileList.length < maxNewPhotos && !enhancing && (
                   <div>
-                    <CameraOutlined style={{ fontSize: 22, color: '#c41d7f' }} />
+                    <CameraOutlined style={{ fontSize: 22, color: '#1a3a6b' }} />
                     <div style={{ marginTop: 6, fontSize: 12, color: '#595959' }}>
                       Agregar foto
                     </div>
@@ -617,9 +617,9 @@ export default function Inventory() {
                   <Progress
                     percent={enhanceProgress}
                     status="active"
-                    strokeColor="#c41d7f"
+                    strokeColor="#1a3a6b"
                     format={() => (
-                      <span style={{ fontSize: 11, color: '#c41d7f' }}>
+                      <span style={{ fontSize: 11, color: '#1a3a6b' }}>
                         {enhanceStatus === 'removing-bg' ? 'Quitando fondo…' : 'Componiendo…'}
                       </span>
                     )}
@@ -638,7 +638,7 @@ export default function Inventory() {
               type="primary" htmlType="submit"
               loading={createMutation.isPending || updateMutation.isPending || uploadingImages}
               disabled={enhancing}
-              style={{ background: '#c41d7f', borderColor: '#c41d7f' }}
+              style={{ background: '#1a3a6b', borderColor: '#1a3a6b' }}
             >
               {enhancing ? 'Procesando fotos…' : editItem ? 'Guardar cambios' : 'Crear artículo'}
             </Button>

@@ -149,18 +149,18 @@ export default function Buyers() {
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-        <Title level={4} style={{ color: '#c41d7f', margin: 0 }}>Compradoras</Title>
+        <Title level={4} style={{ color: '#1a3a6b', margin: 0 }}>Compradoras</Title>
         <Space>
           <Input
             placeholder="Buscar compradora…"
-            prefix={<SearchOutlined style={{ color: '#c41d7f' }} />}
+            prefix={<SearchOutlined style={{ color: '#1a3a6b' }} />}
             value={search}
             onChange={e => setSearch(e.target.value)}
             allowClear
             style={{ width: 220 }}
           />
           <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}
-            style={{ background: '#c41d7f', borderColor: '#c41d7f' }}>
+            style={{ background: '#1a3a6b', borderColor: '#1a3a6b' }}>
             Nueva compradora
           </Button>
         </Space>
@@ -200,7 +200,7 @@ export default function Buyers() {
                   { title: 'Pendiente de pago', value: `$${stats.pending_amount.toLocaleString('es-MX')}`, valueStyle: { color: stats.pending_amount > 0 ? '#f5222d' : undefined } },
                 ].map(s => (
                   <Col xs={12} key={s.title}>
-                    <Card size="small" style={{ borderRadius: 8, borderColor: '#ffe0f0' }}>
+                    <Card size="small" style={{ borderRadius: 8, borderColor: '#c8d8f0' }}>
                       <Statistic title={s.title} value={s.value} valueStyle={{ fontSize: 16, ...(s.valueStyle || {}) }} />
                     </Card>
                   </Col>
@@ -284,7 +284,7 @@ export default function Buyers() {
             <Button onClick={() => setModalOpen(false)}>Cancelar</Button>
             <Button type="primary" htmlType="submit"
               loading={createMutation.isPending || updateMutation.isPending}
-              style={{ background: '#c41d7f', borderColor: '#c41d7f' }}>
+              style={{ background: '#1a3a6b', borderColor: '#1a3a6b' }}>
               {editBuyer ? 'Guardar' : 'Crear'}
             </Button>
           </div>

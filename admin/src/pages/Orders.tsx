@@ -333,7 +333,7 @@ export default function Orders() {
     {
       title: 'Pedido', dataIndex: 'order_number', width: 150,
       render: (v, r) => (
-        <a style={{ color: '#c41d7f', fontFamily: 'monospace', fontSize: 12 }}
+        <a style={{ color: '#1a3a6b', fontFamily: 'monospace', fontSize: 12 }}
           onClick={() => setDetailOrder(r)}>{v}</a>
       ),
     },
@@ -420,9 +420,9 @@ export default function Orders() {
     <div>
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-        <Title level={4} style={{ color: '#c41d7f', margin: 0 }}>Pedidos</Title>
+        <Title level={4} style={{ color: '#1a3a6b', margin: 0 }}>Pedidos</Title>
         <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreateOpen(true)}
-          style={{ background: '#c41d7f', borderColor: '#c41d7f' }}>
+          style={{ background: '#1a3a6b', borderColor: '#1a3a6b' }}>
           Nueva orden
         </Button>
       </div>
@@ -436,7 +436,7 @@ export default function Orders() {
           { title: 'Pagos pendientes a vendedoras', value: `$${pendingPayouts.toLocaleString('es-MX')}`, valueStyle: { color: '#d46b08' } },
         ].map(s => (
           <Col xs={12} lg={6} key={s.title}>
-            <Card size="small" style={{ borderRadius: 10, borderColor: '#ffe0f0' }}>
+            <Card size="small" style={{ borderRadius: 10, borderColor: '#c8d8f0' }}>
               <Statistic title={s.title} value={s.value} valueStyle={{ fontSize: 18, ...(s.valueStyle || {}) }} />
             </Card>
           </Col>
@@ -447,7 +447,7 @@ export default function Orders() {
       <div style={{ marginBottom: 12 }}>
         <Input
           placeholder="Buscar compradora, vendedora, artículo, SKU…"
-          prefix={<SearchOutlined style={{ color: '#c41d7f' }} />}
+          prefix={<SearchOutlined style={{ color: '#1a3a6b' }} />}
           value={filterSearch}
           onChange={e => setFilterSearch(e.target.value)}
           allowClear
@@ -468,8 +468,8 @@ export default function Orders() {
                 display: 'flex',
                 alignItems: 'center',
                 cursor: 'pointer',
-                borderBottom: activeTab === 'closed' ? '2px solid #c41d7f' : '2px solid transparent',
-                color: activeTab === 'closed' ? '#c41d7f' : 'rgba(0,0,0,0.65)',
+                borderBottom: activeTab === 'closed' ? '2px solid #1a3a6b' : '2px solid transparent',
+                color: activeTab === 'closed' ? '#1a3a6b' : 'rgba(0,0,0,0.65)',
                 fontWeight: activeTab === 'closed' ? 600 : 400,
                 marginBottom: -1,
                 transition: 'color 0.2s',
@@ -565,7 +565,7 @@ export default function Orders() {
               </Descriptions.Item>
               <Descriptions.Item label="Vendedora">{detailOrder.seller_name || '—'}</Descriptions.Item>
               <Descriptions.Item label="Total">
-                <Text strong style={{ color: '#c41d7f' }}>
+                <Text strong style={{ color: '#1a3a6b' }}>
                   ${Number(detailOrder.amount).toLocaleString('es-MX')} MXN
                 </Text>
               </Descriptions.Item>
@@ -682,7 +682,7 @@ export default function Orders() {
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
             <Button onClick={() => setEditOrder(null)}>Cancelar</Button>
             <Button type="primary" htmlType="submit" loading={updateMutation.isPending}
-              style={{ background: '#c41d7f', borderColor: '#c41d7f' }}>Guardar</Button>
+              style={{ background: '#1a3a6b', borderColor: '#1a3a6b' }}>Guardar</Button>
           </div>
         </Form>
       </Modal>
@@ -727,7 +727,7 @@ export default function Orders() {
       {/* ── Nueva Orden modal ─────────────────────────────────────────────────── */}
       <Modal
         open={createOpen}
-        title={<span><ShoppingCartOutlined style={{ color: '#c41d7f', marginRight: 8 }} />Nueva orden (venta manual)</span>}
+        title={<span><ShoppingCartOutlined style={{ color: '#1a3a6b', marginRight: 8 }} />Nueva orden (venta manual)</span>}
         onCancel={() => { setCreateOpen(false); createForm.resetFields() }}
         footer={null}
         width={520}
@@ -800,7 +800,7 @@ export default function Orders() {
             <Button onClick={() => { setCreateOpen(false); createForm.resetFields() }}>Cancelar</Button>
             <Button type="primary" htmlType="submit" loading={createMutation.isPending}
               icon={<WhatsAppOutlined />}
-              style={{ background: '#c41d7f', borderColor: '#c41d7f' }}>
+              style={{ background: '#1a3a6b', borderColor: '#1a3a6b' }}>
               Crear orden y notificar
             </Button>
           </div>

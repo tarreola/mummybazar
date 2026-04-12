@@ -12,7 +12,7 @@
 const OUTPUT_W = 800
 const OUTPUT_H = 1000   // 4:5 ratio (Instagram / marketplace standard)
 const PADDING = 40      // px of white padding around the subject
-const WATERMARK_TEXT = 'MommyBazar'
+const WATERMARK_TEXT = 'El Ropero de Mar'
 
 export type EnhanceStatus = 'idle' | 'removing-bg' | 'compositing' | 'done' | 'error'
 
@@ -64,7 +64,7 @@ function addWatermark(canvas: HTMLCanvasElement) {
 
   ctx.save()
   ctx.font = `600 ${fontSize}px 'Segoe UI', Arial, sans-serif`
-  ctx.fillStyle = 'rgba(180, 0, 90, 0.28)'  // rosa MommyBazar, semi-transparente
+  ctx.fillStyle = 'rgba(26, 58, 107, 0.28)'  // rosa MommyBazar, semi-transparente
   ctx.textAlign = 'right'
   ctx.textBaseline = 'bottom'
 

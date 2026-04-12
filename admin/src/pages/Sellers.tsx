@@ -155,18 +155,18 @@ export default function Sellers() {
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-        <Title level={4} style={{ color: '#c41d7f', margin: 0 }}>Vendedoras</Title>
+        <Title level={4} style={{ color: '#1a3a6b', margin: 0 }}>Vendedoras</Title>
         <Space>
           <Input
             placeholder="Buscar vendedora…"
-            prefix={<SearchOutlined style={{ color: '#c41d7f' }} />}
+            prefix={<SearchOutlined style={{ color: '#1a3a6b' }} />}
             value={search}
             onChange={e => setSearch(e.target.value)}
             allowClear
             style={{ width: 220 }}
           />
           <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}
-            style={{ background: '#c41d7f', borderColor: '#c41d7f' }}>
+            style={{ background: '#1a3a6b', borderColor: '#1a3a6b' }}>
             Nueva vendedora
           </Button>
         </Space>
@@ -202,9 +202,9 @@ export default function Sellers() {
             {stats && (
               <Row gutter={[8, 8]} style={{ marginBottom: 16 }}>
                 <Col xs={12}>
-                  <Card size="small" style={{ borderRadius: 8, borderColor: '#ffe0f0', cursor: 'pointer' }}
+                  <Card size="small" style={{ borderRadius: 8, borderColor: '#c8d8f0', cursor: 'pointer' }}
                     onClick={() => { setStatsSeller(null); setStats(null); navigate(`/inventory?seller_id=${statsSeller!.id}`) }}>
-                    <Statistic title={<span>Artículos totales <OrderedListOutlined style={{ color: '#c41d7f', marginLeft: 4 }} /></span>}
+                    <Statistic title={<span>Artículos totales <OrderedListOutlined style={{ color: '#1a3a6b', marginLeft: 4 }} /></span>}
                       value={stats.total_items} valueStyle={{ fontSize: 18 }} />
                   </Card>
                 </Col>
@@ -215,7 +215,7 @@ export default function Sellers() {
                   { title: 'Pago pendiente', value: `$${stats.pending_payout.toLocaleString('es-MX')}`, valueStyle: { color: '#d46b08' } },
                 ].map(s => (
                   <Col xs={12} key={s.title}>
-                    <Card size="small" style={{ borderRadius: 8, borderColor: '#ffe0f0' }}>
+                    <Card size="small" style={{ borderRadius: 8, borderColor: '#c8d8f0' }}>
                       <Statistic title={s.title} value={s.value} valueStyle={{ fontSize: 18, ...(s.valueStyle || {}) }} />
                     </Card>
                   </Col>
@@ -256,7 +256,7 @@ export default function Sellers() {
                             }
                           >
                             <div>
-                              <Text style={{ fontFamily: 'monospace', fontSize: 12, color: '#c41d7f' }}>
+                              <Text style={{ fontFamily: 'monospace', fontSize: 12, color: '#1a3a6b' }}>
                                 {o.order_number}
                               </Text>
                               <div style={{ fontSize: 11, color: 'var(--muted)' }}>
@@ -283,7 +283,7 @@ export default function Sellers() {
                           <List.Item style={{ padding: '6px 0' }}>
                             <div style={{ flex: 1 }}>
                               <Space size={6}>
-                                <Text style={{ fontFamily: 'monospace', fontSize: 11, color: '#c41d7f' }}>{o.order_number}</Text>
+                                <Text style={{ fontFamily: 'monospace', fontSize: 11, color: '#1a3a6b' }}>{o.order_number}</Text>
                                 <Tag color={ORDER_STATUS_COLOR[o.status]} style={{ fontSize: 10, margin: 0 }}>
                                   {ORDER_STATUS_LABEL[o.status]}
                                 </Tag>
@@ -340,7 +340,7 @@ export default function Sellers() {
             <Button onClick={() => setModalOpen(false)}>Cancelar</Button>
             <Button type="primary" htmlType="submit"
               loading={createMutation.isPending || updateMutation.isPending}
-              style={{ background: '#c41d7f', borderColor: '#c41d7f' }}>
+              style={{ background: '#1a3a6b', borderColor: '#1a3a6b' }}>
               {editSeller ? 'Guardar' : 'Crear'}
             </Button>
           </div>

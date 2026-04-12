@@ -1,4 +1,4 @@
-import { Layout, Menu, Avatar, Dropdown, Typography, Button } from 'antd'
+import { Layout, Menu, Avatar, Typography, Button } from 'antd'
 import {
   DashboardOutlined, ShoppingOutlined, TeamOutlined,
   OrderedListOutlined, WhatsAppOutlined, LogoutOutlined, UserOutlined,
@@ -8,6 +8,11 @@ import { useAuth } from '../store/auth'
 
 const { Sider, Header, Content } = Layout
 const { Text } = Typography
+
+const NAVY = '#1a3a6b'
+const RED  = '#d42b2b'
+const BORDER = '#c8d8f0'
+const BG_LIGHT = '#eef2f9'
 
 const NAV_ITEMS = [
   { key: '/', icon: <DashboardOutlined />, label: 'Dashboard' },
@@ -28,18 +33,22 @@ export default function AppLayout() {
         width={220}
         style={{
           background: '#fff',
-          borderRight: '1px solid #ffe0f0',
+          borderRight: `1px solid ${BORDER}`,
           position: 'fixed',
           height: '100vh',
           overflow: 'auto',
         }}
       >
         {/* Logo */}
-        <div style={{ padding: '24px 20px 16px', borderBottom: '1px solid #ffe0f0' }}>
-          <div style={{ fontSize: 28 }}>🌸</div>
-          <Text strong style={{ color: '#c41d7f', fontSize: 16, display: 'block', lineHeight: 1.2 }}>
-            MommyBazar
-          </Text>
+        <div style={{ padding: '20px 20px 16px', borderBottom: `1px solid ${BORDER}` }}>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 2, lineHeight: 1.1 }}>
+            <Text style={{ color: NAVY, fontSize: 13, fontWeight: 700, letterSpacing: 0 }}>
+              el ropero de{' '}
+            </Text>
+            <Text style={{ color: RED, fontSize: 17, fontWeight: 900, letterSpacing: 1 }}>
+              MAR
+            </Text>
+          </div>
           <Text type="secondary" style={{ fontSize: 11 }}>Admin Panel</Text>
         </div>
 
@@ -57,7 +66,7 @@ export default function AppLayout() {
             block
             icon={<LogoutOutlined />}
             onClick={signOut}
-            style={{ borderColor: '#ffadd2', color: '#c41d7f' }}
+            style={{ borderColor: BORDER, color: NAVY }}
           >
             Salir
           </Button>
@@ -67,17 +76,17 @@ export default function AppLayout() {
       <Layout style={{ marginLeft: 220 }}>
         <Header style={{
           background: '#fff',
-          borderBottom: '1px solid #ffe0f0',
+          borderBottom: `1px solid ${BORDER}`,
           padding: '0 24px',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'flex-end',
           height: 56,
         }}>
-          <Avatar style={{ background: '#ffadd2', color: '#c41d7f' }} icon={<UserOutlined />} />
+          <Avatar style={{ background: BG_LIGHT, color: NAVY }} icon={<UserOutlined />} />
         </Header>
 
-        <Content style={{ padding: 24, background: '#fff8fc', minHeight: 'calc(100vh - 56px)' }}>
+        <Content style={{ padding: 24, background: '#f5f8ff', minHeight: 'calc(100vh - 56px)' }}>
           <Outlet />
         </Content>
       </Layout>

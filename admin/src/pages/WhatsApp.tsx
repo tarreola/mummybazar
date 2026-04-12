@@ -93,7 +93,7 @@ function TemplateCard({ tpl, onUse }: { tpl: TemplateGroup; onUse: (key: string)
   return (
     <Card
       size="small"
-      style={{ borderRadius: 10, borderColor: '#ffe0f0', marginBottom: 8 }}
+      style={{ borderRadius: 10, borderColor: '#c8d8f0', marginBottom: 8 }}
       extra={
         <Space size={4}>
           <Tooltip title="Ver preview"><Button size="small" icon={<EyeOutlined />} onClick={loadPreview} loading={loading} /></Tooltip>
@@ -302,7 +302,7 @@ export default function WhatsAppHub() {
     <div>
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-        <Title level={4} style={{ color: '#c41d7f', margin: 0 }}>
+        <Title level={4} style={{ color: '#1a3a6b', margin: 0 }}>
           <WhatsAppOutlined style={{ color: '#25d366', marginRight: 8 }} />WhatsApp Hub
         </Title>
         <Space wrap>
@@ -326,7 +326,7 @@ export default function WhatsAppHub() {
           { label: 'Total mensajes', value: messages.length, color: '#595959' },
         ].map(s => (
           <Col key={s.label}>
-            <Card size="small" style={{ borderRadius: 8, borderColor: '#ffe0f0', minWidth: 130 }}>
+            <Card size="small" style={{ borderRadius: 8, borderColor: '#c8d8f0', minWidth: 130 }}>
               <Text type="secondary" style={{ fontSize: 12 }}>{s.label}</Text>
               <div><Text strong style={{ color: s.color, fontSize: 22 }}>{s.value}</Text></div>
             </Card>
@@ -338,7 +338,7 @@ export default function WhatsAppHub() {
       <Card
         size="small"
         title={<span><Tag color="green" style={{ marginRight: 4 }}>Labels WhatsApp</Tag> por estado de orden</span>}
-        style={{ borderRadius: 10, borderColor: '#ffe0f0', marginBottom: 16 }}
+        style={{ borderRadius: 10, borderColor: '#c8d8f0', marginBottom: 16 }}
       >
         <Row gutter={[8, 4]}>
           {Object.entries(ORDER_STATUS_LABELS).map(([status, label]) => (
@@ -357,13 +357,13 @@ export default function WhatsAppHub() {
         items={[
           {
             key: 'contacts',
-            label: <span><UserOutlined />Contactos <Badge count={buyers.length} color="#c41d7f" /></span>,
+            label: <span><UserOutlined />Contactos <Badge count={buyers.length} color="#1a3a6b" /></span>,
             children: (
               <div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
                   <Input
                     placeholder="Buscar por nombre, teléfono o email…"
-                    prefix={<SearchOutlined style={{ color: '#c41d7f' }} />}
+                    prefix={<SearchOutlined style={{ color: '#1a3a6b' }} />}
                     value={contactSearch}
                     onChange={e => setContactSearch(e.target.value)}
                     allowClear
@@ -371,7 +371,7 @@ export default function WhatsAppHub() {
                   />
                   <Button type="primary" icon={<PlusOutlined />}
                     onClick={() => setAddContactOpen(true)}
-                    style={{ background: '#c41d7f', borderColor: '#c41d7f' }}>
+                    style={{ background: '#1a3a6b', borderColor: '#1a3a6b' }}>
                     Añadir contacto
                   </Button>
                 </div>
@@ -436,7 +436,7 @@ export default function WhatsAppHub() {
                   items={[
                     {
                       key: 'seller',
-                      label: <span><TeamOutlined style={{ color: '#c41d7f', marginRight: 6 }} />Para Vendedoras</span>,
+                      label: <span><TeamOutlined style={{ color: '#1a3a6b', marginRight: 6 }} />Para Vendedoras</span>,
                       children: TEMPLATE_GROUPS.filter(t => t.audience === 'seller').map(t => (
                         <TemplateCard key={t.key} tpl={t} onUse={useTemplate} />
                       )),
@@ -519,7 +519,7 @@ export default function WhatsAppHub() {
               .filter(t => t.audience === recipientType || recipientType === 'custom')
               .map(t => (
                 <Tag key={t.key}
-                  style={{ cursor: 'pointer', borderColor: '#c41d7f', color: '#c41d7f', fontSize: 11 }}
+                  style={{ cursor: 'pointer', borderColor: '#1a3a6b', color: '#1a3a6b', fontSize: 11 }}
                   onClick={() => {
                     // Fill body with template text using sample vars
                     const vars = Object.fromEntries(t.variables.map(v => [v, SAMPLE_VARS[v] || `{${v}}`]))
@@ -562,7 +562,7 @@ export default function WhatsAppHub() {
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
             <Button onClick={() => { setAddContactOpen(false); addContactForm.resetFields() }}>Cancelar</Button>
             <Button type="primary" htmlType="submit" loading={addContactMutation.isPending}
-              style={{ background: '#c41d7f', borderColor: '#c41d7f' }}>
+              style={{ background: '#1a3a6b', borderColor: '#1a3a6b' }}>
               Guardar
             </Button>
           </div>
@@ -587,7 +587,7 @@ export default function WhatsAppHub() {
                 <MessageOutlined style={{ marginRight: 6 }} />Mensaje general personalizado
               </Option>
               <Option value="promo">
-                <ShoppingOutlined style={{ color: '#c41d7f', marginRight: 6 }} />Promoción con artículos del inventario
+                <ShoppingOutlined style={{ color: '#1a3a6b', marginRight: 6 }} />Promoción con artículos del inventario
               </Option>
               <Option value="stagnant">
                 <WarningOutlined style={{ color: '#faad14', marginRight: 6 }} />Recordar artículos sin movimiento (+30 días)
@@ -599,7 +599,7 @@ export default function WhatsAppHub() {
             <Form.Item name="audience" label="Audiencia" rules={[{ required: true }]}>
               <Select>
                 <Option value="all_sellers">
-                  <TeamOutlined style={{ color: '#c41d7f', marginRight: 6 }} />
+                  <TeamOutlined style={{ color: '#1a3a6b', marginRight: 6 }} />
                   Todas las vendedoras ({sellers.length})
                 </Option>
                 <Option value="all_buyers">

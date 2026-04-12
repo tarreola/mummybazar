@@ -67,7 +67,7 @@ function KpiCard({ title, value, prefix, suffix, color, delta, compLabel }: {
   compLabel?: string
 }) {
   return (
-    <Card style={{ borderRadius: 12, borderColor: '#ffe0f0', height: '100%' }}>
+    <Card style={{ borderRadius: 12, borderColor: '#c8d8f0', height: '100%' }}>
       <Statistic
         title={<Text style={{ color: '#888', fontSize: 13 }}>{title}</Text>}
         value={value}
@@ -145,7 +145,7 @@ export default function Dashboard() {
   if (!isCustomReady) {
     return (
       <div>
-        <Title level={4} style={{ color: '#c41d7f', marginBottom: 16 }}>Dashboard</Title>
+        <Title level={4} style={{ color: '#1a3a6b', marginBottom: 16 }}>Dashboard</Title>
         <PeriodBar period={period} onPeriod={setPeriod} customRange={customRange} onCustomRange={setCustomRange} />
         <div style={{ marginTop: 60, textAlign: 'center' }}>
           <Text type="secondary">Selecciona un rango de fechas para ver el dashboard.</Text>
@@ -156,7 +156,7 @@ export default function Dashboard() {
 
   if (isLoading || !summary) return (
     <div>
-      <Title level={4} style={{ color: '#c41d7f', marginBottom: 16 }}>Dashboard</Title>
+      <Title level={4} style={{ color: '#1a3a6b', marginBottom: 16 }}>Dashboard</Title>
       <PeriodBar period={period} onPeriod={setPeriod} customRange={customRange} onCustomRange={setCustomRange} />
       <Spin size="large" style={{ display: 'block', marginTop: 80 }} />
     </div>
@@ -195,7 +195,7 @@ export default function Dashboard() {
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16, flexWrap: 'wrap', gap: 8 }}>
         <div>
-          <Title level={4} style={{ color: '#c41d7f', margin: 0 }}>Dashboard</Title>
+          <Title level={4} style={{ color: '#1a3a6b', margin: 0 }}>Dashboard</Title>
           {periodSubtitle && <Text type="secondary" style={{ fontSize: 12 }}>{periodSubtitle}</Text>}
         </div>
         <PeriodBar period={period} onPeriod={setPeriod} customRange={customRange} onCustomRange={setCustomRange} />
@@ -204,7 +204,7 @@ export default function Dashboard() {
       {/* Row 1 — Revenue KPIs */}
       <Row gutter={[12, 12]}>
         {[
-          { title: 'Ventas brutas', value: s.revenue.gross, prefix: '$', suffix: 'MXN', color: '#c41d7f', delta: s.revenue.delta_gross },
+          { title: 'Ventas brutas', value: s.revenue.gross, prefix: '$', suffix: 'MXN', color: '#1a3a6b', delta: s.revenue.delta_gross },
           { title: 'Comisión (30%)', value: s.revenue.commission, prefix: '$', suffix: 'MXN', color: '#389e0d', delta: s.revenue.delta_commission },
           { title: 'Número de pedidos', value: s.revenue.orders, color: '#531dab', delta: s.revenue.delta_orders },
           { title: 'Pagos pendientes a vendedoras', value: s.pending_seller_payouts, prefix: '$', suffix: 'MXN', color: '#d46b08' },
@@ -220,7 +220,7 @@ export default function Dashboard() {
         {[
           { title: 'Pedidos cerrados', value: s.closed_orders_count ?? 0, color: '#595959' },
           { title: 'Pedidos pendientes de envío', value: (s.inventory?.['sold'] ?? 0), color: '#fa8c16' },
-          { title: 'Vendedoras', value: s.totals.sellers, color: '#c41d7f' },
+          { title: 'Vendedoras', value: s.totals.sellers, color: '#1a3a6b' },
           { title: 'Artículos sin movimiento (+30 días)', value: s.stagnant_items_count, color: '#f5222d' },
         ].map(k => (
           <Col xs={12} lg={6} key={k.title}>
@@ -232,18 +232,18 @@ export default function Dashboard() {
       {/* Row 3 — Revenue chart + Inventory status */}
       <Row gutter={[12, 12]} style={{ marginTop: 12 }}>
         <Col xs={24} lg={15}>
-          <Card title="Ingresos últimos 6 meses" style={{ borderRadius: 12, borderColor: '#ffe0f0' }}>
+          <Card title="Ingresos últimos 6 meses" style={{ borderRadius: 12, borderColor: '#c8d8f0' }}>
             <Column
               data={revenueChartData}
               xField="month" yField="value" seriesField="type" isGroup
               colorField="type"
-              scale={{ color: { range: ['#ff85c2', '#ffadd2'] } }}
+              scale={{ color: { range: ['#ff85c2', '#7b9fd4'] } }}
               height={240} label={false}
             />
           </Card>
         </Col>
         <Col xs={24} lg={9}>
-          <Card title="Estado del inventario" style={{ borderRadius: 12, borderColor: '#ffe0f0', height: '100%' }}>
+          <Card title="Estado del inventario" style={{ borderRadius: 12, borderColor: '#c8d8f0', height: '100%' }}>
             {(() => {
               const inv = s.inventory as Record<string, number>
               const total = Object.values(inv).reduce((a, b) => a + b, 0) || 1
@@ -276,7 +276,7 @@ export default function Dashboard() {
       {/* Row 4 — Category pie + Top sellers + Top buyers */}
       <Row gutter={[12, 12]} style={{ marginTop: 12 }}>
         <Col xs={24} lg={8}>
-          <Card title="Ventas por categoría" style={{ borderRadius: 12, borderColor: '#ffe0f0' }}>
+          <Card title="Ventas por categoría" style={{ borderRadius: 12, borderColor: '#c8d8f0' }}>
             {categoryPieData.length > 0 ? (
               <Pie
                 data={categoryPieData} angleField="value" colorField="type"
@@ -292,12 +292,12 @@ export default function Dashboard() {
         <Col xs={24} lg={8}>
           <Card
             title={<span><TrophyOutlined style={{ color: '#faad14', marginRight: 6 }} />Top Vendedoras</span>}
-            style={{ borderRadius: 12, borderColor: '#ffe0f0' }}
+            style={{ borderRadius: 12, borderColor: '#c8d8f0' }}
           >
             {topSellers.length === 0 ? <Text type="secondary">Sin datos en este periodo</Text> : topSellers.map((s: any, i: number) => (
               <div key={s.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <Avatar size="small" style={{ background: '#ffadd2', color: '#c41d7f', fontSize: 11 }}>{i + 1}</Avatar>
+                  <Avatar size="small" style={{ background: '#7b9fd4', color: '#1a3a6b', fontSize: 11 }}>{i + 1}</Avatar>
                   <div>
                     <Text strong style={{ fontSize: 13 }}>{s.full_name}</Text>
                     <br />
@@ -312,8 +312,8 @@ export default function Dashboard() {
 
         <Col xs={24} lg={8}>
           <Card
-            title={<span><TrophyOutlined style={{ color: '#c41d7f', marginRight: 6 }} />Top Compradoras</span>}
-            style={{ borderRadius: 12, borderColor: '#ffe0f0' }}
+            title={<span><TrophyOutlined style={{ color: '#1a3a6b', marginRight: 6 }} />Top Compradoras</span>}
+            style={{ borderRadius: 12, borderColor: '#c8d8f0' }}
           >
             {topBuyers.length === 0 ? <Text type="secondary">Sin datos en este periodo</Text> : topBuyers.map((b: any, i: number) => (
               <div key={b.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
@@ -336,8 +336,8 @@ export default function Dashboard() {
       <Row gutter={[12, 12]} style={{ marginTop: 12 }}>
         <Col xs={24} lg={12}>
           <Card
-            title={<span><InstagramOutlined style={{ color: '#c41d7f', marginRight: 6 }} />Web Analytics</span>}
-            style={{ borderRadius: 12, borderColor: '#ffe0f0' }}
+            title={<span><InstagramOutlined style={{ color: '#1a3a6b', marginRight: 6 }} />Web Analytics</span>}
+            style={{ borderRadius: 12, borderColor: '#c8d8f0' }}
             extra={<Tag color="orange">Próximamente Instagram API</Tag>}
           >
             <Row gutter={[12, 12]}>
@@ -348,8 +348,8 @@ export default function Dashboard() {
                 { icon: <EyeOutlined />, label: 'Sesiones activas', value: '—', note: 'Conectar Google Analytics' },
               ].map(item => (
                 <Col xs={12} key={item.label}>
-                  <div style={{ padding: '8px 12px', background: '#fff0f6', borderRadius: 8 }}>
-                    <div style={{ color: '#c41d7f', fontSize: 18, marginBottom: 2 }}>{item.icon}</div>
+                  <div style={{ padding: '8px 12px', background: '#eef2f9', borderRadius: 8 }}>
+                    <div style={{ color: '#1a3a6b', fontSize: 18, marginBottom: 2 }}>{item.icon}</div>
                     <div style={{ fontSize: 20, fontWeight: 700, color: '#595959' }}>{item.value}</div>
                     <div style={{ fontSize: 11, color: '#888', lineHeight: 1.3 }}>{item.label}</div>
                     <div style={{ fontSize: 10, color: '#aaa', marginTop: 2 }}>{item.note}</div>
@@ -362,11 +362,11 @@ export default function Dashboard() {
         <Col xs={24} lg={12}>
           <Card
             title={<span><TeamOutlined style={{ color: '#722ed1', marginRight: 6 }} />Comunidad MommyBazar</span>}
-            style={{ borderRadius: 12, borderColor: '#ffe0f0', height: '100%' }}
+            style={{ borderRadius: 12, borderColor: '#c8d8f0', height: '100%' }}
           >
             <Row gutter={[12, 12]}>
               {communityStats ? [
-                { icon: <TeamOutlined />, label: 'Mamis en la comunidad', value: communityStats.total_mamis, color: '#c41d7f' },
+                { icon: <TeamOutlined />, label: 'Mamis en la comunidad', value: communityStats.total_mamis, color: '#1a3a6b' },
                 { icon: <ShoppingOutlined />, label: 'Artículos disponibles', value: communityStats.total_items, color: '#389e0d' },
                 { icon: <TeamOutlined />, label: 'Vendedoras', value: communityStats.total_sellers, color: '#722ed1' },
                 { icon: <TeamOutlined />, label: 'Compradoras', value: communityStats.total_buyers, color: '#096dd9' },
@@ -400,7 +400,7 @@ function PeriodBar({ period, onPeriod, customRange, onCustomRange }: {
         options={PERIOD_OPTIONS}
         value={period}
         onChange={v => onPeriod(v as DashboardPeriod)}
-        style={{ background: '#fff0f6', borderRadius: 8 }}
+        style={{ background: '#eef2f9', borderRadius: 8 }}
       />
       {period === 'CUSTOM' && (
         <RangePicker
@@ -409,7 +409,7 @@ function PeriodBar({ period, onPeriod, customRange, onCustomRange }: {
           format="DD/MM/YY"
           disabledDate={d => d.isAfter(dayjs())}
           allowClear
-          style={{ borderColor: '#c41d7f' }}
+          style={{ borderColor: '#1a3a6b' }}
         />
       )}
     </Space>

@@ -1,6 +1,9 @@
 import { Link, useNavigate, Outlet } from 'react-router-dom'
 import { useAuth } from '../store/auth'
 
+const NAVY = '#1a3a6b'
+const RED  = '#d42b2b'
+
 export default function Layout() {
   const { user, logout, isAuthenticated } = useAuth()
   const navigate = useNavigate()
@@ -11,19 +14,17 @@ export default function Layout() {
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
       {/* ── Header ── */}
       <header style={{
-        background: '#fff', borderBottom: '1px solid var(--pink-border)',
-        position: 'sticky', top: 0, zIndex: 100, boxShadow: 'var(--shadow)',
+        background: '#fff', borderBottom: '2px solid #c8d8f0',
+        position: 'sticky', top: 0, zIndex: 100, boxShadow: '0 2px 12px rgba(26,58,107,.08)',
       }}>
         <div className="container" style={{
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
           height: 60, gap: 16,
         }}>
           {/* Logo */}
-          <Link to="/" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ fontSize: 28, lineHeight: 1 }}>🌸</span>
-            <span style={{ fontWeight: 800, fontSize: 18, color: 'var(--pink)', lineHeight: 1 }}>
-              MommyBazar
-            </span>
+          <Link to="/" style={{ display: 'flex', alignItems: 'baseline', gap: 4 }}>
+            <span style={{ color: NAVY, fontWeight: 700, fontSize: 16 }}>el ropero de </span>
+            <span style={{ color: RED, fontWeight: 900, fontSize: 20, letterSpacing: 1 }}>MAR</span>
           </Link>
 
           {/* Nav */}
@@ -71,16 +72,20 @@ export default function Layout() {
 
       {/* ── Footer ── */}
       <footer style={{
-        background: '#fff', borderTop: '1px solid var(--pink-border)',
-        padding: '24px 16px', textAlign: 'center', marginTop: 40,
+        background: NAVY, borderTop: '1px solid #2e5fa3',
+        padding: '28px 16px', textAlign: 'center', marginTop: 40,
+        color: '#fff',
       }}>
-        <div style={{ fontWeight: 700, color: 'var(--pink)', marginBottom: 4 }}>MommyBazar 🌸</div>
-        <div style={{ fontSize: 12, color: 'var(--muted)' }}>
-          Artículos de bebé y niños con mucho amor · Ciudad de México
+        <div style={{ marginBottom: 6 }}>
+          <span style={{ color: '#fff', fontWeight: 700, fontSize: 15 }}>el ropero de </span>
+          <span style={{ color: '#f87171', fontWeight: 900, fontSize: 18, letterSpacing: 1 }}>MAR</span>
         </div>
-        <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 4 }}>
+        <div style={{ fontSize: 12, color: '#93b4e0' }}>
+          Ropa y accesorios para bebé y niños · Ciudad de México
+        </div>
+        <div style={{ fontSize: 12, color: '#93b4e0', marginTop: 4 }}>
           ¿Tienes dudas? Escríbenos por{' '}
-          <a href="https://wa.me/525500000000" style={{ color: '#25d366', fontWeight: 600 }}>
+          <a href="https://wa.me/523319537644" style={{ color: '#4ade80', fontWeight: 600 }}>
             WhatsApp
           </a>
         </div>

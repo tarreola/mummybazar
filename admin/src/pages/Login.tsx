@@ -4,7 +4,10 @@ import { LockOutlined, UserOutlined } from '@ant-design/icons'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../store/auth'
 
-const { Title, Text } = Typography
+const { Text } = Typography
+
+const NAVY = '#1a3a6b'
+const RED  = '#d42b2b'
 
 export default function Login() {
   const { signIn } = useAuth()
@@ -29,12 +32,14 @@ export default function Login() {
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
-      background: 'linear-gradient(135deg, #ff85c2 0%, #ffadd2 50%, #fff0f6 100%)',
+      background: 'linear-gradient(135deg, #1a3a6b 0%, #2e5fa3 50%, #eef2f9 100%)',
     }}>
-      <Card style={{ width: 380, borderRadius: 16, boxShadow: '0 8px 32px rgba(255,133,194,0.3)' }}>
+      <Card style={{ width: 380, borderRadius: 16, boxShadow: '0 8px 32px rgba(26,58,107,0.3)' }}>
         <div style={{ textAlign: 'center', marginBottom: 32 }}>
-          <div style={{ fontSize: 48 }}>🌸</div>
-          <Title level={3} style={{ margin: 0, color: '#c41d7f' }}>MommyBazar Admin</Title>
+          <div style={{ marginBottom: 8 }}>
+            <span style={{ color: NAVY, fontSize: 20, fontWeight: 700 }}>el ropero de </span>
+            <span style={{ color: RED, fontSize: 26, fontWeight: 900, letterSpacing: 2 }}>MAR</span>
+          </div>
           <Text type="secondary">Panel de administración</Text>
         </div>
         <Form layout="vertical" onFinish={onFinish}>
@@ -50,7 +55,7 @@ export default function Login() {
             block
             size="large"
             loading={loading}
-            style={{ background: '#c41d7f', borderColor: '#c41d7f', borderRadius: 8 }}
+            style={{ background: NAVY, borderColor: NAVY, borderRadius: 8 }}
           >
             Entrar
           </Button>
