@@ -19,6 +19,10 @@ class ItemCreate(BaseModel):
     selling_price: Decimal
     seller_id: Optional[int] = None
     no_seller: bool = False
+    measurements: Optional[str] = None
+    usage_time: Optional[str] = None
+    includes_manual: Optional[bool] = None
+    seller_review: Optional[str] = None
     notes: Optional[str] = None
     is_featured: bool = False
 
@@ -35,6 +39,10 @@ class ItemUpdate(BaseModel):
     original_price: Optional[Decimal] = None
     selling_price: Optional[Decimal] = None
     status: Optional[ItemStatus] = None
+    measurements: Optional[str] = None
+    usage_time: Optional[str] = None
+    includes_manual: Optional[bool] = None
+    seller_review: Optional[str] = None
     notes: Optional[str] = None
     is_featured: Optional[bool] = None
     no_seller: Optional[bool] = None
@@ -57,6 +65,10 @@ class ItemOut(BaseModel):
     seller_payout: Optional[Decimal]
     commission: Optional[Decimal]
     images: Optional[str]
+    measurements: Optional[str] = None
+    usage_time: Optional[str] = None
+    includes_manual: Optional[bool] = None
+    seller_review: Optional[str] = None
     status: ItemStatus
     is_featured: bool
     no_seller: bool = False

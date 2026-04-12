@@ -37,6 +37,7 @@ class ItemGender(str, enum.Enum):
     GIRL = "girl"
     BOY = "boy"
     UNISEX = "unisex"
+    ADULT = "adult"
 
 
 class Item(Base):
@@ -73,6 +74,11 @@ class Item(Base):
     received_at = Column(DateTime(timezone=True), nullable=True)
     listed_at = Column(DateTime(timezone=True), nullable=True)
     sold_at = Column(DateTime(timezone=True), nullable=True)
+
+    measurements = Column(String, nullable=True)
+    usage_time = Column(String, nullable=True)
+    includes_manual = Column(Boolean, nullable=True)
+    seller_review = Column(Text, nullable=True)
 
     notes = Column(Text, nullable=True)
     is_featured = Column(Boolean, default=False)

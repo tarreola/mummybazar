@@ -32,7 +32,7 @@ const STATUS_LABEL: Record<ItemStatus, string> = {
 }
 const SOLD_STATUSES: ItemStatus[] = ['sold', 'shipped', 'delivered']
 const GENDER_LABEL: Record<string, string> = {
-  girl: 'Niña', boy: 'Niño', unisex: 'Unisex',
+  girl: 'Niña', boy: 'Niño', unisex: 'Unisex', adult: 'Adulto',
 }
 const CATEGORY_LABEL: Record<string, string> = {
   clothing: 'Ropa', furniture: 'Muebles', lactancy: 'Lactancia',
@@ -513,7 +513,7 @@ const { data: items = [], isLoading } = useQuery<Item[]>({
             <Form.Item name="condition" label="Condición" rules={[{ required: true }]}>
               <Select>{Object.entries(CONDITION_LABEL).map(([k, v]) => <Option key={k} value={k}>{v}</Option>)}</Select>
             </Form.Item>
-            <Form.Item name="gender" label="Género">
+            <Form.Item name="gender" label="Para">
               <Select allowClear placeholder="—">
                 {Object.entries(GENDER_LABEL).map(([k, v]) => <Option key={k} value={k}>{v}</Option>)}
               </Select>
@@ -522,16 +522,24 @@ const { data: items = [], isLoading } = useQuery<Item[]>({
           <Space style={{ width: '100%' }} styles={{ item: { flex: 1 } }}>
             <Form.Item name="brand" label="Marca"><Input /></Form.Item>
             <Form.Item name="size" label="Talla"><Input placeholder="ej. 3-6m" /></Form.Item>
-            <Form.Item name="color" label="Color"><Input /></Form.Item>
+            <Form.Item name="measurements" label="Medidas"><Input placeholder="ej. 30x40cm" /></Form.Item>
           </Space>
           <Space style={{ width: '100%' }} styles={{ item: { flex: 1 } }}>
-            <Form.Item name="original_price" label="Precio original ($)">
-              <InputNumber style={{ width: '100%' }} min={0} prefix="$" />
-            </Form.Item>
-            <Form.Item name="selling_price" label="Precio de venta ($)" rules={[{ required: true }]}>
-              <InputNumber style={{ width: '100%' }} min={0} prefix="$" />
+            <Form.Item name="color" label="Color"><Input /></Form.Item>
+            <Form.Item name="usage_time" label="Tiempo de uso"><Input placeholder="ej. 6 meses" /></Form.Item>
+            <Form.Item name="includes_manual" label="Incluye instructivo">
+              <Select allowClear placeholder="—">
+                <Option value={true}>Sí</Option>
+                <Option value={false}>No</Option>
+              </Select>
             </Form.Item>
           </Space>
+          <Form.Item name="selling_price" label="Precio de venta ($)" rules={[{ required: true }]}>
+            <InputNumber style={{ width: 200 }} min={0} prefix="$" />
+          </Form.Item>
+          <Form.Item name="seller_review" label="Reseña del vendedor">
+            <Input.TextArea rows={2} placeholder="Descripción del estado según el vendedor…" />
+          </Form.Item>
           <Form.Item name="notes" label="Notas internas">
             <Input.TextArea rows={2} />
           </Form.Item>
