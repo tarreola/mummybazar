@@ -315,26 +315,27 @@ export default function Sellers() {
       <Modal open={modalOpen} title={editSeller ? 'Editar vendedora' : 'Nueva vendedora'}
         onCancel={() => setModalOpen(false)} footer={null} width={520}>
         <Form form={form} layout="vertical" onFinish={onSave}>
-          <Form.Item name="full_name" label="Nombre completo" rules={[{ required: true }]}>
+          <Form.Item name="full_name" label="Nombre" rules={[{ required: true, message: 'Requerido' }]}>
             <Input />
           </Form.Item>
-          <Form.Item name="phone" label="WhatsApp (con código de país)" rules={[{ required: true }]} extra="Ej: +525512345678">
+          <Form.Item name="phone" label="WhatsApp (con código de país)" rules={[{ required: true, message: 'Requerido' }]} extra="Ej: +525512345678">
             <Input disabled={!!editSeller} />
           </Form.Item>
-          <Space style={{ width: '100%' }} styles={{ item: { flex: 1 } }}>
-            <Form.Item name="email" label="Email"><Input /></Form.Item>
-            <Form.Item name="neighborhood" label="Colonia"><Input /></Form.Item>
-          </Space>
-          <Space style={{ width: '100%' }} styles={{ item: { flex: 1 } }}>
-            <Form.Item name="bank_name" label="Banco"><Input placeholder="BBVA, Santander…" /></Form.Item>
-            <Form.Item name="clabe" label="CLABE interbancaria"><Input /></Form.Item>
-          </Space>
-          <Form.Item name="paypal_email" label="PayPal email"><Input /></Form.Item>
-          <Form.Item name="rating" label="Calificación interna">
-            <Rate count={5} />
+          <Form.Item name="email" label="Email" rules={[{ required: true, message: 'Requerido' }, { type: 'email', message: 'Email inválido' }]}>
+            <Input />
           </Form.Item>
-          <Form.Item name="notes" label="Notas del admin">
-            <Input.TextArea rows={3} />
+          <Form.Item name="neighborhood" label="Colonia" rules={[{ required: true, message: 'Requerido' }]}>
+            <Input />
+          </Form.Item>
+          <Space style={{ width: '100%' }} styles={{ item: { flex: 1 } }}>
+            <Form.Item name="bank_name" label="Banco (opcional)"><Input placeholder="BBVA, Santander…" /></Form.Item>
+            <Form.Item name="clabe" label="CLABE interbancaria (opcional)"><Input /></Form.Item>
+          </Space>
+          <Form.Item name="notes" label="Notas del admin (opcional)">
+            <Input.TextArea rows={2} />
+          </Form.Item>
+          <Form.Item name="rating" label="Calificación interna (opcional)">
+            <Rate count={5} />
           </Form.Item>
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
             <Button onClick={() => setModalOpen(false)}>Cancelar</Button>
