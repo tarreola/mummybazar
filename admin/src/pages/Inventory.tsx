@@ -1,24 +1,21 @@
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   Table, Tag, Button, Modal, Form, Input, Select, InputNumber,
   Space, Typography, Tooltip, message, Drawer, Descriptions, Popconfirm,
-  Upload, Image, Divider, Progress, Alert, Card, Checkbox,
+  Image, Divider, Alert, Card, Checkbox,
 } from 'antd'
 import {
-  PlusOutlined, EditOutlined, StopOutlined, LinkOutlined,
+  PlusOutlined, EditOutlined, LinkOutlined,
   ClockCircleOutlined, CameraOutlined, DeleteOutlined, WarningOutlined,
   ArrowRightOutlined, FilterOutlined,
 } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
-import type { UploadFile } from 'antd/es/upload'
 import dayjs from 'dayjs'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { getItems, createItem, updateItem, getSellers, uploadItemImage, deleteItemImage, deleteItem } from '../api/client'
 import api from '../api/client'
 import type { Item, ItemStatus, Seller } from '../types'
-import { enhanceImage } from '../hooks/useImageEnhance'
-import type { EnhanceStatus } from '../hooks/useImageEnhance'
 
 const { Title, Text } = Typography
 const { Option } = Select
@@ -53,6 +50,8 @@ function daysAgo(date?: string | null): number | null {
   return dayjs().diff(dayjs(date), 'day')
 }
 
+type PhotoFile = { uid: string; name: string; url: string; originFileObj: File }
+
 export default function Inventory() {
   const qc = useQueryClient()
   const navigate = useNavigate()
@@ -63,57 +62,15 @@ export default function Inventory() {
   const [modalOpen, setModalOpen] = useState(false)
   const [editItem, setEditItem] = useState<Item | null>(null)
   const [drawerItem, setDrawerItem] = useState<Item | null>(null)
-  const [fileList, setFileList] = useState<UploadFile[]>([])
+  const [fileList, setFileList] = useState<PhotoFile[]>([])
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const [uploadingImages, setUploadingImages] = useState(false)
-  const [enhancing, setEnhancing] = useState(false)
-  const [enhanceStatus, setEnhanceStatus] = useState<EnhanceStatus>('idle')
-  const [enhanceProgress, setEnhanceProgress] = useState(0)
   const [showClosed, setShowClosed] = useState(false)
   const [filterCategories, setFilterCategories] = useState<string[]>([])
   const [noSellerFilter, setNoSellerFilter] = useState(false)
   const [form] = Form.useForm()
 
-  // Process a batch of raw files through the AI pipeline
-  const processFiles = async (rawFiles: File[]): Promise<UploadFile[]> => {
-    if (rawFiles.length === 0) return []
-    setEnhancing(true)
-    setEnhanceProgress(0)
-    const results: UploadFile[] = []
-    for (let i = 0; i < rawFiles.length; i++) {
-      const raw = rawFiles[i]
-      try {
-        setEnhanceStatus('removing-bg')
-        const { file: enhanced, preview } = await enhanceImage(raw, setEnhanceStatus)
-        results.push({
-          uid: `enhanced-${Date.now()}-${i}`,
-          name: enhanced.name,
-          status: 'done',
-          originFileObj: enhanced as any,
-          url: preview,
-          thumbUrl: preview,
-        })
-      } catch (err) {
-        console.error('Enhancement failed for', raw.name, err)
-        // Fallback: use original file without processing
-        const fallbackUrl = URL.createObjectURL(raw)
-        results.push({
-          uid: `raw-${Date.now()}-${i}`,
-          name: raw.name,
-          status: 'done',
-          originFileObj: raw as any,
-          url: fallbackUrl,
-          thumbUrl: fallbackUrl,
-        })
-        message.warning(`No se pudo procesar "${raw.name}", se usará la foto original.`)
-      }
-      setEnhanceProgress(Math.round(((i + 1) / rawFiles.length) * 100))
-    }
-    setEnhancing(false)
-    setEnhanceStatus('done')
-    return results
-  }
-
-  const { data: items = [], isLoading } = useQuery<Item[]>({
+const { data: items = [], isLoading } = useQuery<Item[]>({
     queryKey: ['items'],
     queryFn: () => getItems({ limit: 200 }).then(r => r.data),
   })
@@ -128,19 +85,19 @@ export default function Inventory() {
     queryFn: () => getSellers().then(r => r.data),
   })
 
-  const uploadPending = async (itemId: number) => {
-    for (const f of fileList) {
-      if (f.originFileObj) await uploadItemImage(itemId, f.originFileObj)
-    }
-  }
-
   const createMutation = useMutation({
-    mutationFn: (data: object) => createItem(data),
-    onSuccess: async (res) => {
+    mutationFn: ({ data, files }: { data: object; files: PhotoFile[] }) => createItem(data),
+    onSuccess: async (res, { files }) => {
       const id = res.data.id
-      if (fileList.length > 0) {
+      if (files.length > 0) {
         setUploadingImages(true)
-        try { await uploadPending(id) } finally { setUploadingImages(false) }
+        try {
+          for (const f of files) await uploadItemImage(id, f.originFileObj)
+        } catch {
+          message.error('Error al subir fotos')
+        } finally {
+          setUploadingImages(false)
+        }
       }
       qc.invalidateQueries({ queryKey: ['items'] })
       setModalOpen(false)
@@ -152,12 +109,18 @@ export default function Inventory() {
   })
 
   const updateMutation = useMutation({
-    mutationFn: ({ id, data }: { id: number; data: object }) => updateItem(id, data),
-    onSuccess: async (res) => {
+    mutationFn: ({ id, data, files }: { id: number; data: object; files: PhotoFile[] }) => updateItem(id, data),
+    onSuccess: async (res, { files }) => {
       const id = res.data.id
-      if (fileList.length > 0) {
+      if (files.length > 0) {
         setUploadingImages(true)
-        try { await uploadPending(id) } finally { setUploadingImages(false) }
+        try {
+          for (const f of files) await uploadItemImage(id, f.originFileObj)
+        } catch {
+          message.error('Error al subir fotos')
+        } finally {
+          setUploadingImages(false)
+        }
       }
       qc.invalidateQueries({ queryKey: ['items'] })
       setModalOpen(false)
@@ -186,12 +149,12 @@ export default function Inventory() {
   const closeModal = () => { setModalOpen(false); setFileList([]) }
 
   const onSave = (values: object) => {
-    if (editItem) updateMutation.mutate({ id: editItem.id, data: values })
-    else createMutation.mutate(values)
+    if (editItem) updateMutation.mutate({ id: editItem.id, data: values, files: fileList })
+    else createMutation.mutate({ data: values, files: fileList })
   }
 
   const markSoldOffPlatform = (item: Item) => {
-    updateMutation.mutate({ id: item.id, data: { status: 'archived', notes: (item.notes || '') + '\n[Vendido fuera de plataforma]' } })
+    updateMutation.mutate({ id: item.id, data: { status: 'archived', notes: (item.notes || '') + '\n[Vendido fuera de plataforma]' }, files: [] })
     message.success(`${item.sku} marcado como vendido fuera de plataforma`)
   }
 
@@ -288,7 +251,7 @@ export default function Inventory() {
       render: (v: ItemStatus, record) => (
         <Select
           size="small" value={v} style={{ width: 140 }}
-          onChange={(status) => updateMutation.mutate({ id: record.id, data: { status } })}
+          onChange={(status) => updateMutation.mutate({ id: record.id, data: { status }, files: [] })}
         >
           {Object.entries(STATUS_LABEL).map(([k, lbl]) => (
             <Option key={k} value={k}>
@@ -609,58 +572,58 @@ export default function Inventory() {
             </div>
           )}
 
-          {/* New photo picker — AI enhanced */}
+          {/* New photo picker */}
           {maxNewPhotos > 0 && (
-            <>
-              <Upload
-                listType="picture-card"
-                fileList={fileList}
-                accept="image/*"
-                multiple
-                showUploadList={{ showPreviewIcon: true, showRemoveIcon: !enhancing }}
-                beforeUpload={() => false}
-                onChange={({ fileList: fl }) => {
-                  // Only handle removals here (additions are handled via customRequest)
-                  if (fl.length < fileList.length) setFileList(fl)
-                }}
-                customRequest={async ({ file, onSuccess }) => {
-                  const raw = file as File
-                  const remaining = maxNewPhotos - fileList.length
-                  if (remaining <= 0) return
-                  const processed = await processFiles([raw])
-                  setFileList(prev => [...prev, ...processed].slice(0, maxNewPhotos))
-                  onSuccess?.('ok')
-                }}
-                disabled={enhancing}
-              >
-                {fileList.length < maxNewPhotos && !enhancing && (
-                  <div>
-                    <CameraOutlined style={{ fontSize: 22, color: '#1a3a6b' }} />
-                    <div style={{ marginTop: 6, fontSize: 12, color: '#595959' }}>
-                      Agregar foto
-                    </div>
-                  </div>
-                )}
-              </Upload>
-
-              {enhancing && (
-                <div style={{ margin: '8px 0' }}>
-                  <Progress
-                    percent={enhanceProgress}
-                    status="active"
-                    strokeColor="#1a3a6b"
-                    format={() => (
-                      <span style={{ fontSize: 11, color: '#1a3a6b' }}>
-                        {enhanceStatus === 'removing-bg' ? 'Quitando fondo…' : 'Componiendo…'}
-                      </span>
-                    )}
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 8 }}>
+              {fileList.map((f, i) => (
+                <div key={f.uid} style={{ position: 'relative', width: 76, height: 95 }}>
+                  <img
+                    src={f.url} alt={f.name}
+                    style={{ width: 76, height: 95, objectFit: 'cover', borderRadius: 6, border: '1px solid #c8d8f0', display: 'block' }}
+                  />
+                  <Button
+                    size="small" danger type="text" icon={<DeleteOutlined />}
+                    onClick={() => setFileList(prev => prev.filter((_, idx) => idx !== i))}
+                    style={{ position: 'absolute', top: 2, right: 2, background: 'rgba(255,255,255,0.85)', borderRadius: 4, padding: '0 4px', minWidth: 0 }}
                   />
                 </div>
+              ))}
+              {fileList.length < maxNewPhotos && (
+                <div
+                  onClick={() => fileInputRef.current?.click()}
+                  style={{
+                    width: 76, height: 95, border: '1px dashed #1a3a6b', borderRadius: 6,
+                    display: 'flex', flexDirection: 'column', alignItems: 'center',
+                    justifyContent: 'center', cursor: 'pointer', background: '#f0f5ff',
+                  }}
+                >
+                  <CameraOutlined style={{ fontSize: 22, color: '#1a3a6b' }} />
+                  <div style={{ fontSize: 11, color: '#595959', marginTop: 4 }}>Agregar</div>
+                </div>
               )}
-            </>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                multiple
+                style={{ display: 'none' }}
+                onChange={(e) => {
+                  const files = Array.from(e.target.files || [])
+                  const remaining = maxNewPhotos - fileList.length
+                  const newFiles = files.slice(0, remaining).map((file, i) => ({
+                    uid: `pick-${Date.now()}-${i}`,
+                    name: file.name,
+                    url: URL.createObjectURL(file),
+                    originFileObj: file,
+                  }))
+                  setFileList(prev => [...prev, ...newFiles].slice(0, maxNewPhotos))
+                  e.target.value = ''
+                }}
+              />
+            </div>
           )}
           <Text type="secondary" style={{ fontSize: 11, display: 'block', marginTop: 4, marginBottom: 16 }}>
-            Máx. 6 fotos · IA elimina fondo → fondo blanco 4:5 · marca de agua MommyBazar
+            Máx. 6 fotos · Cloudinary aplica fondo blanco 4:5 automáticamente
           </Text>
 
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
@@ -668,10 +631,9 @@ export default function Inventory() {
             <Button
               type="primary" htmlType="submit"
               loading={createMutation.isPending || updateMutation.isPending || uploadingImages}
-              disabled={enhancing}
               style={{ background: '#1a3a6b', borderColor: '#1a3a6b' }}
             >
-              {enhancing ? 'Procesando fotos…' : editItem ? 'Guardar cambios' : 'Crear artículo'}
+              {editItem ? 'Guardar cambios' : 'Crear artículo'}
             </Button>
           </div>
         </Form>

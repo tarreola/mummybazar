@@ -24,8 +24,8 @@ cloudinary.config(
 
 def _generate_sku(db: Session) -> str:
     year = datetime.now().year
-    count = db.query(func.count(Item.id)).scalar() + 1
-    return f"MB-{year}-{count:05d}"
+    max_id = db.query(func.max(Item.id)).scalar() or 0
+    return f"MB-{year}-{max_id + 1:05d}"
 
 
 def _calculate_pricing(selling_price: Decimal):
