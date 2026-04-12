@@ -162,21 +162,11 @@ async def upload_image(
         folder=f"mommybazar/items/{item.sku}",
         public_id=f"{item.sku}_{idx:02d}",
         overwrite=True,
-        eager=[{
-            "angle": "exif",
-            "width": 800,
-            "height": 1000,
-            "crop": "pad",
-            "background": "white",
-            "gravity": "center",
-            "quality": "auto:good",
-            "fetch_format": "auto",
-        }],
-        eager_async=False,
+        quality="auto:good",
+        fetch_format="auto",
     )
 
-    # Store the transformed URL (not the raw original)
-    url = result["eager"][0]["secure_url"]
+    url = result["secure_url"]
     existing.append(url)
     item.images = ",".join(existing)
     db.commit()
