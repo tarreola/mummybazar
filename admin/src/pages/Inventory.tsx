@@ -275,9 +275,10 @@ export default function Inventory() {
     },
     {
       title: 'Vendedora', dataIndex: 'seller_id', width: 140,
-      render: v => {
+      render: (v, r) => {
+        if ((r as any).no_seller) return <Tag color="geekblue" style={{ fontSize: 11 }}>Admin</Tag>
         const s = sellerMap[v]
-        return s ? <Text style={{ fontSize: 12 }}>{s.full_name}</Text> : `#${v}`
+        return s ? <Text style={{ fontSize: 12 }}>{s.full_name}</Text> : '—'
       },
       filters: sellers.map(s => ({ text: s.full_name, value: s.id })),
       onFilter: (value, record) => record.seller_id === value,
@@ -417,17 +418,20 @@ export default function Inventory() {
               <Descriptions.Item label="Categoría">{CATEGORY_LABEL[drawerItem.category] || drawerItem.category}</Descriptions.Item>
               <Descriptions.Item label="Condición">{CONDITION_LABEL[drawerItem.condition]}</Descriptions.Item>
               {drawerItem.gender && <Descriptions.Item label="Género">{GENDER_LABEL[drawerItem.gender] || drawerItem.gender}</Descriptions.Item>}
-              {drawerItem.no_seller && <Descriptions.Item label="Sin vendedor"><Tag color="purple">100% comisión</Tag></Descriptions.Item>}
+
               <Descriptions.Item label="Marca">{drawerItem.brand || '—'}</Descriptions.Item>
               <Descriptions.Item label="Talla">{drawerItem.size || '—'}</Descriptions.Item>
               <Descriptions.Item label="Color">{drawerItem.color || '—'}</Descriptions.Item>
               <Descriptions.Item label="Precio original">{drawerItem.original_price ? `$${Number(drawerItem.original_price).toLocaleString('es-MX')}` : '—'}</Descriptions.Item>
               <Descriptions.Item label="Precio de venta">${Number(drawerItem.selling_price).toLocaleString('es-MX')} MXN</Descriptions.Item>
               <Descriptions.Item label="Pago a vendedora">${Number(drawerItem.seller_payout || 0).toLocaleString('es-MX')} MXN</Descriptions.Item>
-              <Descriptions.Item label="Comisión (30%)">${Number(drawerItem.commission || 0).toLocaleString('es-MX')} MXN</Descriptions.Item>
+              <Descriptions.Item label={drawerItem.no_seller ? 'Comisión (100%)' : 'Comisión (30%)'}>
+                ${Number(drawerItem.commission || 0).toLocaleString('es-MX')} MXN
+                {drawerItem.no_seller && <Tag color="blue" style={{ marginLeft: 6 }}>Ingreso total</Tag>}
+              </Descriptions.Item>
               <Descriptions.Item label="Vendedora">
                 {drawerItem.no_seller
-                  ? <Tag color="purple">Sin vendedor</Tag>
+                  ? <Tag color="geekblue">Admin</Tag>
                   : drawerItem.seller_id && sellerMap[drawerItem.seller_id]
                     ? <a onClick={() => { setDrawerItem(null); navigate('/sellers') }}>
                         {sellerMap[drawerItem.seller_id].full_name} <LinkOutlined />
