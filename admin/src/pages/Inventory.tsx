@@ -99,7 +99,7 @@ const { data: items = [], isLoading } = useQuery<Item[]>({
           setUploadingImages(false)
         }
       }
-      qc.invalidateQueries({ queryKey: ['items'] })
+      await qc.invalidateQueries({ queryKey: ['items'] })
       setModalOpen(false)
       setFileList([])
       form.resetFields()
@@ -122,7 +122,7 @@ const { data: items = [], isLoading } = useQuery<Item[]>({
           setUploadingImages(false)
         }
       }
-      qc.invalidateQueries({ queryKey: ['items'] })
+      await qc.invalidateQueries({ queryKey: ['items'] })
       setModalOpen(false)
       setFileList([])
     },
