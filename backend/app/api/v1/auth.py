@@ -28,7 +28,7 @@ def update_admin(db: Session = Depends(get_db)):
     user = db.query(User).filter(User.is_superuser == True).first()
     if not user:
         raise HTTPException(status_code=404, detail="Admin not found")
-    user.email = "admin"
+    user.email = "admin@elroperodemar.com"
     user.hashed_password = hash_password("MAR.17092024")
     db.commit()
     db.refresh(user)
