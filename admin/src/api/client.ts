@@ -84,6 +84,7 @@ export const deleteItem = (id: number) => api.delete(`/items/${id}`)
 // ── Orders ────────────────────────────────────────────────────────────────────
 export const getOrders = (params?: object) => api.get('/orders/', { params })
 export const getOrder = (id: number) => api.get(`/orders/${id}`)
+export const getOrderByItem = (itemId: number) => api.get(`/orders/by-item/${itemId}`)
 export const createOrder = (data: object) => api.post('/orders/', data)
 export const updateOrder = (id: number, data: object) => api.patch(`/orders/${id}`, data)
 

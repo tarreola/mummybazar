@@ -2,12 +2,12 @@ import { useMemo, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   Table, Tag, Typography, Input, Space, Drawer, Descriptions, Select,
-  Button, message, Divider,
+  Button, message, Divider, Timeline,
 } from 'antd'
-import { CameraOutlined, EditOutlined } from '@ant-design/icons'
+import { CameraOutlined, EditOutlined, ShoppingCartOutlined, GiftOutlined, CarOutlined, CheckCircleOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import dayjs from 'dayjs'
-import { getItems, getSellers, updateItem } from '../api/client'
+import { getItems, getSellers, updateItem, getOrderByItem } from '../api/client'
 import type { Item, ItemStatus, Seller } from '../types'
 
 const { Title, Text } = Typography
@@ -44,6 +44,12 @@ export default function HistoricOrders() {
   const [drawerItem, setDrawerItem] = useState<Item | null>(null)
   const [editStatus, setEditStatus] = useState<ItemStatus | null>(null)
   const [editSellerId, setEditSellerId] = useState<number | null | 'admin'>(null)
+
+  const { data: drawerOrder } = useQuery({
+    queryKey: ['order-by-item', drawerItem?.id],
+    queryFn: () => getOrderByItem(drawerItem!.id).then(r => r.data),
+    enabled: !!drawerItem,
+  })
 
   const { data: items = [], isLoading } = useQuery<Item[]>({
     queryKey: ['items'],
@@ -247,6 +253,61 @@ export default function HistoricOrders() {
               <Descriptions.Item label="Publicado">{drawerItem.listed_at ? dayjs(drawerItem.listed_at).format('DD/MM/YYYY') : '—'}</Descriptions.Item>
               <Descriptions.Item label="Vendido">{drawerItem.sold_at ? dayjs(drawerItem.sold_at).format('DD/MM/YYYY') : '—'}</Descriptions.Item>
             </Descriptions>
+
+            {drawerOrder && (
+              <>
+                <Divider style={{ margin: '8px 0 12px' }}>Línea de tiempo</Divider>
+                <Timeline
+                  style={{ marginBottom: 8 }}
+                  items={[
+                    drawerOrder.created_at && {
+                      dot: <ShoppingCartOutlined style={{ color: '#1677ff' }} />,
+                      children: (
+                        <div>
+                          <Tag color="blue">Compra realizada</Tag>
+                          <div style={{ fontSize: 11, color: '#888', marginTop: 2 }}>
+                            {dayjs(drawerOrder.created_at).format('DD/MM/YYYY HH:mm')}
+                          </div>
+                        </div>
+                      ),
+                    },
+                    drawerItem.listed_at && {
+                      dot: <GiftOutlined style={{ color: '#13c2c2' }} />,
+                      children: (
+                        <div>
+                          <Tag color="cyan">Preparando</Tag>
+                          <div style={{ fontSize: 11, color: '#888', marginTop: 2 }}>
+                            {dayjs(drawerItem.listed_at).format('DD/MM/YYYY')}
+                          </div>
+                        </div>
+                      ),
+                    },
+                    drawerItem.sold_at && {
+                      dot: <CarOutlined style={{ color: '#722ed1' }} />,
+                      children: (
+                        <div>
+                          <Tag color="purple">Enviado</Tag>
+                          <div style={{ fontSize: 11, color: '#888', marginTop: 2 }}>
+                            {dayjs(drawerItem.sold_at).format('DD/MM/YYYY')}
+                          </div>
+                        </div>
+                      ),
+                    },
+                    drawerOrder.status === 'closed' && drawerOrder.updated_at && {
+                      dot: <CheckCircleOutlined style={{ color: '#52c41a' }} />,
+                      children: (
+                        <div>
+                          <Tag color="default">Cerrado</Tag>
+                          <div style={{ fontSize: 11, color: '#888', marginTop: 2 }}>
+                            {dayjs(drawerOrder.updated_at).format('DD/MM/YYYY HH:mm')}
+                          </div>
+                        </div>
+                      ),
+                    },
+                  ].filter(Boolean) as any[]}
+                />
+              </>
+            )}
 
             <Divider style={{ margin: '8px 0 12px' }}>Editar</Divider>
 

@@ -161,6 +161,14 @@ def request_delivery_confirm(order_id: int, db: Session = Depends(get_db), _=Dep
     return {"ok": True, "message": "Delivery confirmation request sent"}
 
 
+@router.get("/by-item/{item_id}")
+def get_order_by_item(item_id: int, db: Session = Depends(get_db), _=Depends(get_current_user)):
+    order = db.query(Order).filter(Order.item_id == item_id).first()
+    if not order:
+        return None
+    return _enrich(order, db)
+
+
 @router.get("/{order_id}", response_model=OrderOut)
 def get_order(order_id: int, db: Session = Depends(get_db), _=Depends(get_current_user)):
     order = db.query(Order).filter(Order.id == order_id).first()
