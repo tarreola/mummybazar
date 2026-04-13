@@ -134,6 +134,10 @@ def catalog(
     max_price: Optional[float] = None,
     search: Optional[str] = None,
     featured: Optional[bool] = None,
+    gender: Optional[str] = None,
+    size: Optional[str] = None,
+    has_discount: bool = False,
+    sort: Optional[str] = None,
     skip: int = 0,
     limit: int = 40,
     db: Session = Depends(get_db),
@@ -155,10 +159,22 @@ def catalog(
         )
     if featured:
         q = q.filter(Item.is_featured == True)
+    if gender:
+        q = q.filter(Item.gender == gender)
+    if size:
+        q = q.filter(Item.size.ilike(f"%{size}%"))
+    if has_discount:
+        q = q.filter(Item.original_price.isnot(None), Item.original_price > Item.selling_price)
 
-    # Featured first, then newest
-    items = q.order_by(Item.is_featured.desc(), Item.listed_at.desc()).offset(skip).limit(limit).all()
+    if sort == 'price_asc':
+        q = q.order_by(Item.selling_price.asc())
+    elif sort == 'price_desc':
+        q = q.order_by(Item.selling_price.desc())
+    else:
+        q = q.order_by(Item.is_featured.desc(), Item.listed_at.desc())
+
     total = q.count()
+    items = q.offset(skip).limit(limit).all()
 
     return {
         "items": [_item_out(i) for i in items],
@@ -188,13 +204,14 @@ def _item_out(item: Item, full=False) -> dict:
         "size": item.size,
         "color": item.color,
         "selling_price": float(item.selling_price),
+        "original_price": float(item.original_price) if item.original_price else None,
+        "gender": item.gender.value if item.gender else None,
         "images": images,
         "is_featured": item.is_featured,
         "listed_at": item.listed_at.isoformat() if item.listed_at else None,
     }
     if full:
         d["description"] = item.description
-        d["original_price"] = float(item.original_price) if item.original_price else None
     return d
 
 
