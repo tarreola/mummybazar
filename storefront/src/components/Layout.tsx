@@ -20,7 +20,7 @@ export default function Layout() {
   const navigate = useNavigate()
   const location = useLocation()
   const [tiendaOpen, setTiendaOpen] = useState(false)
-  const [mobileOpen, setMobileOpen] = useState(false)
+
   const dropRef = useRef<HTMLDivElement>(null)
 
   const handleLogout = () => { logout(); navigate('/') }
@@ -35,7 +35,7 @@ export default function Layout() {
   }, [])
 
   // Close mobile menu on route change
-  useEffect(() => { setMobileOpen(false); setTiendaOpen(false) }, [location.pathname])
+  useEffect(() => { setTiendaOpen(false) }, [location.pathname])
 
   const navLink = (to: string, label: string) => (
     <Link to={to} style={{ fontSize: 14, fontWeight: 500, color: 'var(--text)', padding: '6px 10px', whiteSpace: 'nowrap' }}>{label}</Link>
