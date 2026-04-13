@@ -4,8 +4,11 @@ Revision ID: i9j0k1l2m3n4
 Revises: h8i9j0k1l2m3
 Create Date: 2026-04-13 12:00:00.000000
 
-Sets item status to match the linked order's current status for all
-existing orders so Historic Orders and Dashboard reflect real data.
+Fixes commission_amount on no_seller orders and syncs item statuses from
+their linked order statuses for existing data.
+
+NOTE: PostgreSQL enum values in this DB are stored UPPERCASE (SHIPPED,
+DELIVERED, CLOSED, etc.) — must use uppercase in raw SQL.
 """
 from alembic import op
 import sqlalchemy as sa
@@ -18,7 +21,6 @@ depends_on = None
 
 def upgrade():
     # Fix commission_amount and seller_payout_amount on orders for no_seller items
-    # (at order creation, commission was wrongly calculated at 30% instead of 100%)
     op.execute(sa.text("""
         UPDATE orders
         SET commission_amount = orders.amount,
@@ -29,35 +31,35 @@ def upgrade():
           AND orders.commission_amount < orders.amount
     """))
 
-    # Items linked to shipped orders → shipped
+    # Items linked to shipped orders → SHIPPED
     op.execute(sa.text("""
         UPDATE items
-        SET status = 'shipped'
+        SET status = 'SHIPPED'
         FROM orders
         WHERE orders.item_id = items.id
-          AND orders.status = 'shipped'
-          AND items.status NOT IN ('returned', 'archived')
+          AND orders.status = 'SHIPPED'
+          AND items.status NOT IN ('RETURNED', 'ARCHIVED')
     """))
 
-    # Items linked to delivered or closed orders → delivered
+    # Items linked to delivered or closed orders → DELIVERED
     op.execute(sa.text("""
         UPDATE items
-        SET status = 'delivered'
+        SET status = 'DELIVERED'
         FROM orders
         WHERE orders.item_id = items.id
-          AND orders.status IN ('delivered', 'closed')
-          AND items.status NOT IN ('returned', 'archived')
+          AND orders.status IN ('DELIVERED', 'CLOSED')
+          AND items.status NOT IN ('RETURNED', 'ARCHIVED')
     """))
 
-    # Items linked to cancelled orders → listed (re-list them)
+    # Items linked to cancelled orders → LISTED
     op.execute(sa.text("""
         UPDATE items
-        SET status = 'listed',
+        SET status = 'LISTED',
             sold_at = NULL
         FROM orders
         WHERE orders.item_id = items.id
-          AND orders.status = 'cancelled'
-          AND items.status = 'sold'
+          AND orders.status = 'CANCELLED'
+          AND items.status = 'SOLD'
     """))
 
 
