@@ -1,14 +1,17 @@
-import { useMemo } from 'react'
-import { useQuery } from '@tanstack/react-query'
-import { Table, Tag, Typography, Input, Space } from 'antd'
-import { CameraOutlined } from '@ant-design/icons'
+import { useMemo, useState } from 'react'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import {
+  Table, Tag, Typography, Input, Space, Drawer, Descriptions, Select,
+  Button, message, Divider,
+} from 'antd'
+import { CameraOutlined, EditOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import dayjs from 'dayjs'
-import { getItems, getSellers } from '../api/client'
+import { getItems, getSellers, updateItem } from '../api/client'
 import type { Item, ItemStatus, Seller } from '../types'
-import { useState } from 'react'
 
 const { Title, Text } = Typography
+const { Option } = Select
 
 const STATUS_COLOR: Record<ItemStatus, string> = {
   received: 'blue', inspected: 'cyan', listed: 'green',
@@ -36,7 +39,11 @@ function daysPublished(listedAt?: string | null, soldAt?: string | null): number
 }
 
 export default function HistoricOrders() {
+  const qc = useQueryClient()
   const [search, setSearch] = useState('')
+  const [drawerItem, setDrawerItem] = useState<Item | null>(null)
+  const [editStatus, setEditStatus] = useState<ItemStatus | null>(null)
+  const [editSellerId, setEditSellerId] = useState<number | null | 'admin'>(null)
 
   const { data: items = [], isLoading } = useQuery<Item[]>({
     queryKey: ['items'],
@@ -49,6 +56,37 @@ export default function HistoricOrders() {
   })
 
   const sellerMap = Object.fromEntries(sellers.map(s => [s.id, s]))
+
+  const updateMutation = useMutation({
+    mutationFn: ({ id, data }: { id: number; data: object }) => updateItem(id, data),
+    onSuccess: (res) => {
+      qc.invalidateQueries({ queryKey: ['items'] })
+      setDrawerItem(res.data)
+      message.success('Artículo actualizado')
+    },
+    onError: () => message.error('Error al actualizar'),
+  })
+
+  const openDrawer = (item: Item) => {
+    setDrawerItem(item)
+    setEditStatus(item.status)
+    setEditSellerId(item.no_seller ? 'admin' : item.seller_id ?? null)
+  }
+
+  const saveChanges = () => {
+    if (!drawerItem) return
+    const data: Record<string, any> = {}
+    if (editStatus && editStatus !== drawerItem.status) data.status = editStatus
+    if (editSellerId === 'admin' && !drawerItem.no_seller) {
+      data.no_seller = true
+      data.seller_id = null
+    } else if (editSellerId !== 'admin' && editSellerId !== drawerItem.seller_id) {
+      data.no_seller = false
+      data.seller_id = editSellerId
+    }
+    if (Object.keys(data).length === 0) { message.info('Sin cambios'); return }
+    updateMutation.mutate({ id: drawerItem.id, data })
+  }
 
   const closedItems = useMemo(() => {
     let result = items.filter(i => CLOSED_STATUSES.includes(i.status))
@@ -70,7 +108,9 @@ export default function HistoricOrders() {
   const columns: ColumnsType<Item> = [
     {
       title: 'SKU', dataIndex: 'sku', width: 130,
-      render: v => <span style={{ fontFamily: 'monospace', color: '#1a3a6b', fontSize: 12 }}>{v}</span>,
+      render: (v, r) => (
+        <a style={{ fontFamily: 'monospace', color: '#1a3a6b', fontSize: 12 }} onClick={() => openDrawer(r)}>{v}</a>
+      ),
     },
     {
       title: 'Foto', dataIndex: 'images', width: 60,
@@ -141,6 +181,12 @@ export default function HistoricOrders() {
       onFilter: (value, record) => record.status === value,
       render: (v: ItemStatus) => <Tag color={STATUS_COLOR[v]}>{STATUS_LABEL[v]}</Tag>,
     },
+    {
+      title: '', width: 50,
+      render: (_, r) => (
+        <Button size="small" icon={<EditOutlined />} onClick={() => openDrawer(r)} />
+      ),
+    },
   ]
 
   return (
@@ -170,6 +216,81 @@ export default function HistoricOrders() {
         size="small"
         pagination={{ pageSize: 25 }}
       />
+
+      <Drawer
+        title={drawerItem ? `${drawerItem.sku} — ${drawerItem.title}` : ''}
+        open={!!drawerItem}
+        onClose={() => setDrawerItem(null)}
+        width={400}
+      >
+        {drawerItem && (
+          <>
+            {parseImages(drawerItem.images).length > 0 && (
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 16 }}>
+                {parseImages(drawerItem.images).map((url, i) => (
+                  <img key={i} src={url} width={80} height={100}
+                    style={{ objectFit: 'cover', borderRadius: 6, border: '1px solid #c8d8f0' }} />
+                ))}
+              </div>
+            )}
+
+            <Descriptions column={1} size="small" bordered style={{ marginBottom: 16 }}>
+              <Descriptions.Item label="Categoría">{CATEGORY_LABEL[drawerItem.category] || drawerItem.category}</Descriptions.Item>
+              <Descriptions.Item label="Precio">${Number(drawerItem.selling_price).toLocaleString('es-MX')} MXN</Descriptions.Item>
+              <Descriptions.Item label="Comisión">
+                ${Number(drawerItem.commission || 0).toLocaleString('es-MX')} MXN
+                {drawerItem.no_seller && <Tag color="geekblue" style={{ marginLeft: 6 }}>100%</Tag>}
+              </Descriptions.Item>
+              <Descriptions.Item label="Pago vendedora">
+                ${Number(drawerItem.seller_payout || 0).toLocaleString('es-MX')} MXN
+              </Descriptions.Item>
+              <Descriptions.Item label="Publicado">{drawerItem.listed_at ? dayjs(drawerItem.listed_at).format('DD/MM/YYYY') : '—'}</Descriptions.Item>
+              <Descriptions.Item label="Vendido">{drawerItem.sold_at ? dayjs(drawerItem.sold_at).format('DD/MM/YYYY') : '—'}</Descriptions.Item>
+            </Descriptions>
+
+            <Divider style={{ margin: '8px 0 12px' }}>Editar</Divider>
+
+            <div style={{ marginBottom: 12 }}>
+              <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 4 }}>Estado</Text>
+              <Select value={editStatus ?? drawerItem.status} onChange={v => setEditStatus(v)} style={{ width: '100%' }}>
+                {Object.entries(STATUS_LABEL).map(([k, lbl]) => (
+                  <Option key={k} value={k}>
+                    <Tag color={STATUS_COLOR[k as ItemStatus]} style={{ margin: 0 }}>{lbl}</Tag>
+                  </Option>
+                ))}
+              </Select>
+            </div>
+
+            <div style={{ marginBottom: 16 }}>
+              <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 4 }}>Vendedora</Text>
+              <Select
+                value={editSellerId === 'admin' ? 'admin' : (editSellerId ?? undefined)}
+                onChange={v => setEditSellerId(v)}
+                style={{ width: '100%' }}
+                showSearch
+                optionFilterProp="label"
+              >
+                <Option value="admin" label="Admin">
+                  <Tag color="geekblue">Admin</Tag>
+                </Option>
+                {sellers.map(s => (
+                  <Option key={s.id} value={s.id} label={s.full_name}>{s.full_name}</Option>
+                ))}
+              </Select>
+            </div>
+
+            <Button
+              type="primary"
+              block
+              loading={updateMutation.isPending}
+              onClick={saveChanges}
+              style={{ background: '#1a3a6b', borderColor: '#1a3a6b' }}
+            >
+              Guardar cambios
+            </Button>
+          </>
+        )}
+      </Drawer>
     </div>
   )
 }
