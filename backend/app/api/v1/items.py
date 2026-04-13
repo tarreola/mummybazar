@@ -114,13 +114,15 @@ def update_item(item_id: int, payload: ItemUpdate, db: Session = Depends(get_db)
         elif data["status"] == ItemStatus.SOLD and not item.sold_at:
             data["sold_at"] = datetime.now(timezone.utc)
 
-    if "selling_price" in data:
+    # Recalculate pricing whenever price OR no_seller changes
+    if "selling_price" in data or "no_seller" in data:
+        price = data.get("selling_price", item.selling_price)
         is_no_seller = data.get("no_seller", item.no_seller)
         if is_no_seller:
-            data["commission"] = data["selling_price"]
+            data["commission"] = Decimal(str(price))
             data["seller_payout"] = Decimal("0")
         else:
-            commission, seller_payout = _calculate_pricing(data["selling_price"])
+            commission, seller_payout = _calculate_pricing(Decimal(str(price)))
             data["commission"] = commission
             data["seller_payout"] = seller_payout
 
