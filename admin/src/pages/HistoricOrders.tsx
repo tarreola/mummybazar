@@ -146,7 +146,10 @@ export default function HistoricOrders() {
       render: (v, r) => (
         <span style={{ color: '#1a3a6b', fontWeight: 600 }}>
           ${Number(v || 0).toLocaleString('es-MX')}
-          {r.no_seller && <Tag color="geekblue" style={{ marginLeft: 4, fontSize: 10 }}>100%</Tag>}
+          {r.no_seller
+            ? <Tag color="geekblue" style={{ marginLeft: 4, fontSize: 10 }}>100%</Tag>
+            : <Tag color="default" style={{ marginLeft: 4, fontSize: 10 }}>30%</Tag>
+          }
         </span>
       ),
       sorter: (a, b) => Number(a.commission || 0) - Number(b.commission || 0),
@@ -245,7 +248,10 @@ export default function HistoricOrders() {
               <Descriptions.Item label="Precio">${Number(drawerItem.selling_price).toLocaleString('es-MX')} MXN</Descriptions.Item>
               <Descriptions.Item label="Comisión">
                 ${Number(drawerItem.commission || 0).toLocaleString('es-MX')} MXN
-                {drawerItem.no_seller && <Tag color="geekblue" style={{ marginLeft: 6 }}>100%</Tag>}
+                {drawerItem.no_seller
+                  ? <Tag color="geekblue" style={{ marginLeft: 6 }}>100%</Tag>
+                  : <Tag color="default" style={{ marginLeft: 6 }}>30%</Tag>
+                }
               </Descriptions.Item>
               <Descriptions.Item label="Pago vendedora">
                 ${Number(drawerItem.seller_payout || 0).toLocaleString('es-MX')} MXN
