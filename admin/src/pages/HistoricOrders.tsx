@@ -265,7 +265,7 @@ export default function HistoricOrders() {
               <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 4 }}>Vendedora</Text>
               <Select
                 value={editSellerId === 'admin' ? 'admin' : (editSellerId ?? undefined)}
-                onChange={v => setEditSellerId(v)}
+                onChange={v => setEditSellerId(v as number | 'admin')}
                 style={{ width: '100%' }}
                 showSearch
                 optionFilterProp="label"
