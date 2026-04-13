@@ -212,6 +212,19 @@ def update_order(order_id: int, payload: OrderUpdate, db: Session = Depends(get_
         item = db.query(Item).filter(Item.id == order.item_id).first()
         title = item.title if item else "tu artículo"
 
+        # ── Keep item status in sync with order status ────────────────────────
+        if item:
+            if new_status == OrderStatus.SHIPPED:
+                item.status = ItemStatus.SHIPPED
+                db.commit()
+            elif new_status in (OrderStatus.DELIVERED, OrderStatus.CLOSED):
+                item.status = ItemStatus.DELIVERED
+                db.commit()
+            elif new_status == OrderStatus.CANCELLED:
+                item.status = ItemStatus.LISTED
+                item.sold_at = None
+                db.commit()
+
         if new_status == OrderStatus.PAID and buyer_phone:
             _try_whatsapp(
                 whatsapp_service.notify_buyer_order_confirmed,
@@ -236,10 +249,6 @@ def update_order(order_id: int, payload: OrderUpdate, db: Session = Depends(get_
             pass  # No WhatsApp — closing is an internal admin action
 
         elif new_status == OrderStatus.CANCELLED:
-            if item:
-                item.status = ItemStatus.LISTED
-                item.sold_at = None
-                db.commit()
             if buyer_phone:
                 _try_whatsapp(
                     whatsapp_service.send,

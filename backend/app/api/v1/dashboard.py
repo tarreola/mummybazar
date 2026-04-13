@@ -130,26 +130,22 @@ def get_summary(
     # All-time totals
     all_gross, all_commission, all_orders_total = _revenue_query(db, datetime(2000, 1, 1, tzinfo=timezone.utc), now)
 
-    # Ingreso MAR = sum of commission field on all sold items (already correct: 30% seller items + 100% admin items)
-    ingreso_mar_cur = db.query(func.sum(Item.commission)).join(
-        Order, Order.item_id == Item.id
-    ).filter(
+    # Ingreso MAR = commission locked in at order creation time (correct for both seller 30% and admin 100%)
+    ingreso_mar_cur = db.query(func.sum(Order.commission_amount)).filter(
         Order.status.in_(PAID_STATUSES),
         Order.created_at >= cur_start,
         Order.created_at <= cur_end,
     ).scalar() or Decimal("0")
 
-    ingreso_mar_prev = db.query(func.sum(Item.commission)).join(
-        Order, Order.item_id == Item.id
-    ).filter(
+    ingreso_mar_prev = db.query(func.sum(Order.commission_amount)).filter(
         Order.status.in_(PAID_STATUSES),
         Order.created_at >= prev_start,
         Order.created_at <= prev_end,
     ).scalar() or Decimal("0")
 
-    ingreso_mar_total = db.query(func.sum(Item.commission)).join(
-        Order, Order.item_id == Item.id
-    ).filter(Order.status.in_(PAID_STATUSES)).scalar() or Decimal("0")
+    ingreso_mar_total = db.query(func.sum(Order.commission_amount)).filter(
+        Order.status.in_(PAID_STATUSES)
+    ).scalar() or Decimal("0")
 
     # Open orders: pending_payment + paid + preparing + shipped
     open_orders_count = db.query(func.count(Order.id)).filter(
