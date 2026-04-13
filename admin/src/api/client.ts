@@ -57,6 +57,7 @@ export const getSeller = (id: number) => api.get(`/sellers/${id}`)
 export const createSeller = (data: object) => api.post('/sellers/', data)
 export const updateSeller = (id: number, data: object) => api.patch(`/sellers/${id}`, data)
 export const approveSeller = (id: number) => api.post(`/sellers/${id}/approve`)
+export const deleteSeller = (id: number) => api.delete(`/sellers/${id}`)
 
 // ── Buyers ────────────────────────────────────────────────────────────────────
 export const getBuyers = () => api.get('/buyers/')

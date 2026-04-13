@@ -4,11 +4,11 @@ import {
   Table, Button, Modal, Form, Input, Space, Typography, Tag, Tooltip,
   message, Drawer, Descriptions, Rate, Statistic, Row, Col, Card, Badge, Popconfirm, Divider, List,
 } from 'antd'
-import { PlusOutlined, EditOutlined, WhatsAppOutlined, BarChartOutlined, CheckCircleOutlined, SearchOutlined, DollarOutlined, OrderedListOutlined, ClockCircleOutlined } from '@ant-design/icons'
+import { PlusOutlined, EditOutlined, WhatsAppOutlined, BarChartOutlined, CheckCircleOutlined, SearchOutlined, DollarOutlined, OrderedListOutlined, ClockCircleOutlined, DeleteOutlined } from '@ant-design/icons'
 import { useNavigate } from 'react-router-dom'
 import dayjs from 'dayjs'
 import type { ColumnsType } from 'antd/es/table'
-import { getSellers, createSeller, updateSeller, approveSeller, getOrders } from '../api/client'
+import { getSellers, createSeller, updateSeller, approveSeller, deleteSeller, getOrders } from '../api/client'
 import api from '../api/client'
 import type { Seller, Order } from '../types'
 
@@ -80,6 +80,17 @@ export default function Sellers() {
     mutationFn: (id: number) => approveSeller(id),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['sellers'] }); message.success('Vendedora aprobada') },
     onError: () => message.error('Error al aprobar'),
+  })
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: number) => deleteSeller(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['sellers'] })
+      setStatsSeller(null)
+      setStats(null)
+      message.success('Vendedora eliminada')
+    },
+    onError: () => message.error('Error al eliminar'),
   })
 
   const onSave = (values: object) => {
@@ -222,6 +233,23 @@ export default function Sellers() {
                 ))}
               </Row>
             )}
+
+            <div style={{ marginBottom: 16, display: 'flex', gap: 8 }}>
+              <Button icon={<EditOutlined />} onClick={() => { setStatsSeller(null); setStats(null); openEdit(statsSeller) }} style={{ flex: 1 }}>
+                Editar perfil
+              </Button>
+              <Popconfirm
+                title="¿Eliminar vendedora?"
+                description="Esta acción no se puede deshacer."
+                onConfirm={() => deleteMutation.mutate(statsSeller.id)}
+                okText="Eliminar" okButtonProps={{ danger: true }}
+                cancelText="Cancelar"
+              >
+                <Button danger icon={<DeleteOutlined />} loading={deleteMutation.isPending}>
+                  Eliminar vendedora
+                </Button>
+              </Popconfirm>
+            </div>
 
             {/* ── Pedidos activos y pagos pendientes ── */}
             {sellerOrders.length > 0 && (() => {

@@ -256,13 +256,11 @@ export default function HistoricOrders() {
               <Descriptions.Item label="Pago vendedora">
                 ${Number(drawerItem.seller_payout || 0).toLocaleString('es-MX')} MXN
               </Descriptions.Item>
-              <Descriptions.Item label="Publicado">{drawerItem.listed_at ? dayjs(drawerItem.listed_at).format('DD/MM/YYYY') : '—'}</Descriptions.Item>
-              <Descriptions.Item label="Vendido">{drawerItem.sold_at ? dayjs(drawerItem.sold_at).format('DD/MM/YYYY') : '—'}</Descriptions.Item>
             </Descriptions>
 
             {drawerOrder && (
               <>
-                <Divider style={{ margin: '8px 0 12px' }}>Línea de tiempo</Divider>
+                <Divider style={{ margin: '8px 0 12px' }}>Audit</Divider>
                 <Timeline
                   style={{ marginBottom: 8 }}
                   items={[
