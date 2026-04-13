@@ -172,7 +172,7 @@ export default function Dashboard() {
   // Charts data
   const revenueChartData = revenue.flatMap((r: any) => [
     { month: r.month, type: 'Venta bruta', value: r.gross },
-    { month: r.month, type: 'Comisión (30%)', value: r.commission },
+    { month: r.month, type: 'Ingreso MAR', value: r.commission },
   ])
 
   const categoryPieData = byCategory.map((c: any) => ({
@@ -204,10 +204,10 @@ export default function Dashboard() {
       {/* Row 1 — Revenue KPIs */}
       <Row gutter={[12, 12]}>
         {[
-          { title: 'Ventas brutas', value: s.revenue.gross, prefix: '$', suffix: 'MXN', color: '#1a3a6b', delta: s.revenue.delta_gross },
-          { title: 'Comisión (30%)', value: s.revenue.commission, prefix: '$', suffix: 'MXN', color: '#389e0d', delta: s.revenue.delta_commission },
-          { title: 'Número de pedidos', value: s.revenue.orders, color: '#531dab', delta: s.revenue.delta_orders },
-          { title: 'Pagos pendientes a vendedoras', value: s.pending_seller_payouts, prefix: '$', suffix: 'MXN', color: '#d46b08' },
+          { title: 'Ventas Brutas', value: s.revenue.gross, prefix: '$', suffix: 'MXN', color: '#1a3a6b', delta: s.revenue.delta_gross },
+          { title: 'Ingreso MAR', value: s.revenue.ingreso_mar ?? s.revenue.commission, prefix: '$', suffix: 'MXN', color: '#389e0d', delta: s.revenue.delta_ingreso_mar ?? s.revenue.delta_commission },
+          { title: 'Número de Pedidos', value: s.open_orders_count ?? s.revenue.orders, color: '#531dab', delta: s.revenue.delta_orders },
+          { title: 'Pagos Pendientes a Vendedoras', value: s.pending_seller_payouts, prefix: '$', suffix: 'MXN', color: '#d46b08' },
         ].map(k => (
           <Col xs={12} lg={6} key={k.title}>
             <KpiCard {...k} compLabel={compLabel} />
@@ -218,8 +218,8 @@ export default function Dashboard() {
       {/* Row 2 — Operational snapshot */}
       <Row gutter={[12, 12]} style={{ marginTop: 12 }}>
         {[
-          { title: 'Pedidos cerrados', value: s.closed_orders_count ?? 0, color: '#595959' },
-          { title: 'Pedidos pendientes de envío', value: (s.inventory?.['sold'] ?? 0), color: '#fa8c16' },
+          { title: 'Pedidos Cerrados', value: s.closed_orders_count ?? 0, color: '#595959' },
+          { title: 'Pedidos Pendientes de Envío', value: s.pending_ship_count ?? (s.inventory?.['sold'] ?? 0), color: '#fa8c16' },
           { title: 'Vendedoras', value: s.totals.sellers, color: '#1a3a6b' },
           { title: 'Artículos sin movimiento (+30 días)', value: s.stagnant_items_count, color: '#f5222d' },
         ].map(k => (

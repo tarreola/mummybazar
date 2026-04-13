@@ -124,15 +124,6 @@ export default function ItemDetail() {
           <div style={{ fontSize: 30, fontWeight: 800, color: 'var(--pink)', marginBottom: 4 }}>
             ${Number(item.selling_price).toLocaleString('es-MX')} <span style={{ fontSize: 16, fontWeight: 400, color: 'var(--muted)' }}>MXN</span>
           </div>
-          {item.original_price && (
-            <div style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 16 }}>
-              Precio original:{' '}
-              <span style={{ textDecoration: 'line-through' }}>
-                ${Number(item.original_price).toLocaleString('es-MX')}
-              </span>
-              {' '}· Ahorras ${(Number(item.original_price) - Number(item.selling_price)).toLocaleString('es-MX')}
-            </div>
-          )}
 
           {item.description && (
             <p style={{ fontSize: 14, color: 'var(--text)', lineHeight: 1.6, marginBottom: 20 }}>

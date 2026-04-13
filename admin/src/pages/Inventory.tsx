@@ -379,7 +379,7 @@ const { data: items = [], isLoading } = useQuery<Item[]>({
               <Descriptions.Item label="Marca">{drawerItem.brand || '—'}</Descriptions.Item>
               <Descriptions.Item label="Talla">{drawerItem.size || '—'}</Descriptions.Item>
               <Descriptions.Item label="Color">{drawerItem.color || '—'}</Descriptions.Item>
-              <Descriptions.Item label="Precio original">{drawerItem.original_price ? `$${Number(drawerItem.original_price).toLocaleString('es-MX')}` : '—'}</Descriptions.Item>
+
               <Descriptions.Item label="Precio de venta">${Number(drawerItem.selling_price).toLocaleString('es-MX')} MXN</Descriptions.Item>
               <Descriptions.Item label="Pago a vendedora">${Number(drawerItem.seller_payout || 0).toLocaleString('es-MX')} MXN</Descriptions.Item>
               <Descriptions.Item label={drawerItem.no_seller ? 'Comisión (100%)' : 'Comisión (30%)'}>

@@ -15,6 +15,9 @@ from app.models.buyer import Buyer
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 
 PAID_STATUSES = [OrderStatus.PAID, OrderStatus.PREPARING, OrderStatus.SHIPPED, OrderStatus.DELIVERED, OrderStatus.CLOSED]
+OPEN_STATUSES = [OrderStatus.PENDING_PAYMENT, OrderStatus.PAID, OrderStatus.PREPARING, OrderStatus.SHIPPED]
+PENDING_SHIP_STATUSES = [OrderStatus.PAID, OrderStatus.PREPARING]
+CLOSED_ORDER_STATUSES = [OrderStatus.CLOSED, OrderStatus.CANCELLED, OrderStatus.REFUNDED]
 
 
 def _period_bounds(period: str, now: datetime):
@@ -127,17 +130,47 @@ def get_summary(
     # All-time totals
     all_gross, all_commission, all_orders_total = _revenue_query(db, datetime(2000, 1, 1, tzinfo=timezone.utc), now)
 
-    # Pending seller payouts (shipped orders not yet paid)
+    # Ingreso MAR = sum of commission field on all sold items (already correct: 30% seller items + 100% admin items)
+    ingreso_mar_cur = db.query(func.sum(Item.commission)).join(
+        Order, Order.item_id == Item.id
+    ).filter(
+        Order.status.in_(PAID_STATUSES),
+        Order.created_at >= cur_start,
+        Order.created_at <= cur_end,
+    ).scalar() or Decimal("0")
+
+    ingreso_mar_prev = db.query(func.sum(Item.commission)).join(
+        Order, Order.item_id == Item.id
+    ).filter(
+        Order.status.in_(PAID_STATUSES),
+        Order.created_at >= prev_start,
+        Order.created_at <= prev_end,
+    ).scalar() or Decimal("0")
+
+    ingreso_mar_total = db.query(func.sum(Item.commission)).join(
+        Order, Order.item_id == Item.id
+    ).filter(Order.status.in_(PAID_STATUSES)).scalar() or Decimal("0")
+
+    # Open orders: pending_payment + paid + preparing + shipped
+    open_orders_count = db.query(func.count(Order.id)).filter(
+        Order.status.in_(OPEN_STATUSES)
+    ).scalar() or 0
+
+    # Pending shipment: paid + preparing
+    pending_ship_count = db.query(func.count(Order.id)).filter(
+        Order.status.in_(PENDING_SHIP_STATUSES)
+    ).scalar() or 0
+
+    # Closed orders: closed + cancelled + refunded
+    closed_orders_count = db.query(func.count(Order.id)).filter(
+        Order.status.in_(CLOSED_ORDER_STATUSES)
+    ).scalar() or 0
+
+    # Pending seller payouts: sum of seller_payout_amount on shipped+not paid orders
     pending_payouts = db.query(func.sum(Order.seller_payout_amount)).filter(
         Order.seller_paid == 0,
         Order.status == OrderStatus.SHIPPED,
     ).scalar() or Decimal("0")
-
-    # Finalized orders count (matches the "Cerrados" tab: closed + cancelled + refunded)
-    finalized_statuses = [OrderStatus.CLOSED, OrderStatus.CANCELLED, OrderStatus.REFUNDED]
-    closed_orders_count = db.query(func.count(Order.id)).filter(
-        Order.status.in_(finalized_statuses)
-    ).scalar() or 0
 
     # Stagnant items (listed > 30 days)
     stagnant_threshold = now - timedelta(days=30)
@@ -164,27 +197,33 @@ def get_summary(
             # Current period
             "gross": cur_gross,
             "commission": cur_commission,
+            "ingreso_mar": float(ingreso_mar_cur),
             "orders": cur_orders,
             "units_sold": units_sold,
             # Previous period
             "prev_gross": prev_gross,
             "prev_commission": prev_commission,
+            "prev_ingreso_mar": float(ingreso_mar_prev),
             "prev_orders": prev_orders,
             "prev_units_sold": units_sold_prev,
             # Deltas %
             "delta_gross": pct_delta(cur_gross, prev_gross),
             "delta_commission": pct_delta(cur_commission, prev_commission),
+            "delta_ingreso_mar": pct_delta(float(ingreso_mar_cur), float(ingreso_mar_prev)),
             "delta_orders": pct_delta(cur_orders, prev_orders),
             "delta_units": pct_delta(units_sold, units_sold_prev),
-            # All-time (for totals row)
+            # All-time
             "total_gross": all_gross,
             "total_commission": all_commission,
+            "total_ingreso_mar": float(ingreso_mar_total),
             "total_orders": all_orders_total,
-            # Legacy aliases (keep UI compatible)
+            # Legacy aliases
             "month_gross": cur_gross,
             "month_commission": cur_commission,
             "units_sold_month": units_sold,
         },
+        "open_orders_count": open_orders_count,
+        "pending_ship_count": pending_ship_count,
         "pending_seller_payouts": float(pending_payouts),
         "closed_orders_count": closed_orders_count,
         "stagnant_items_count": stagnant_count or 0,
