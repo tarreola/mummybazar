@@ -1,12 +1,17 @@
 import { useState } from 'react'
-import { useParams, useNavigate, Link } from 'react-router-dom'
-import { useQuery, useMutation } from '@tanstack/react-query'
-import { getItem, checkout } from '../api/client'
-import { useAuth } from '../store/auth'
+import { useParams, Link } from 'react-router-dom'
+import { useQuery } from '@tanstack/react-query'
+import { getItem } from '../api/client'
+import { useCart } from '../store/cart'
+import ItemSlideshow from '../components/ItemSlideshow'
 
 const CATEGORY: Record<string, string> = {
   clothing: 'Ropa', furniture: 'Muebles', lactancy: 'Lactancia',
   strollers: 'Carriolas', toys: 'Juguetes', accessories: 'Accesorios', other: 'Otro',
+}
+const CATEGORY_LINK: Record<string, string> = {
+  clothing: '/tienda/ropa', furniture: '/tienda/muebles', lactancy: '/tienda/lactancia',
+  strollers: '/tienda/carriolas', toys: '/tienda/juguetes', accessories: '/tienda/accesorios',
 }
 const CONDITION: Record<string, string> = {
   like_new: 'Como nuevo ✨', good: 'Buen estado 👍', fair: 'Estado regular',
@@ -17,38 +22,33 @@ const CONDITION_TAG: Record<string, string> = {
 
 export default function ItemDetail() {
   const { id } = useParams<{ id: string }>()
-  const navigate = useNavigate()
-  const { isAuthenticated, user } = useAuth()
+  const { add, remove, has } = useCart()
   const [activePhoto, setActivePhoto] = useState(0)
-  const [shipping, setShipping] = useState('pickup')
-  const [address, setAddress] = useState('')
-  const [error, setError] = useState('')
+  const [cartMsg, setCartMsg] = useState('')
 
   const { data: item, isLoading } = useQuery({
     queryKey: ['sf-item', id],
     queryFn: () => getItem(Number(id)).then(r => r.data),
   })
 
-  const buyMutation = useMutation({
-    mutationFn: (data: object) => checkout(data),
-    onSuccess: (res) => {
-      // Redirect to MercadoPago checkout
-      window.location.href = res.data.checkout_url
-    },
-    onError: (e: any) => {
-      setError(e.response?.data?.detail || 'Error al procesar el pago. Intenta de nuevo.')
-    },
-  })
+  const inCart = item ? has(item.id) : false
 
-  const handleBuy = () => {
-    setError('')
-    if (!isAuthenticated) { navigate('/login?redirect=' + encodeURIComponent(`/articulo/${id}`)); return }
-    if (user?.role !== 'buyer') { setError('Solo las compradoras pueden realizar compras.'); return }
-    buyMutation.mutate({
-      item_id: Number(id),
-      shipping_method: shipping,
-      shipping_address: shipping !== 'pickup' ? address : undefined,
-    })
+  const handleCart = () => {
+    if (!item) return
+    if (inCart) {
+      remove(item.id)
+      setCartMsg('')
+    } else {
+      add({
+        id: item.id,
+        title: item.title,
+        price: Number(item.selling_price),
+        image: item.images?.[0],
+        sku: item.sku,
+      })
+      setCartMsg('✅ Agregado al carrito')
+      setTimeout(() => setCartMsg(''), 3000)
+    }
   }
 
   if (isLoading) return <div className="spinner" style={{ marginTop: 80 }} />
@@ -64,26 +64,36 @@ export default function ItemDetail() {
   )
 
   const images: string[] = item.images || []
+  const hasDiscount = item.original_price && Number(item.original_price) > Number(item.selling_price)
+  const discountPct = hasDiscount
+    ? Math.round((1 - Number(item.selling_price) / Number(item.original_price)) * 100)
+    : 0
 
   return (
-    <div className="container" style={{ paddingTop: 24, paddingBottom: 48 }}>
-      <Link to="/" style={{ fontSize: 13, color: 'var(--muted)', display: 'inline-flex', alignItems: 'center', gap: 4, marginBottom: 16 }}>
-        ← Volver al catálogo
+    <div className="container" style={{ paddingTop: 24, paddingBottom: 64 }}>
+      <Link to={CATEGORY_LINK[item.category] || '/'} style={{ fontSize: 13, color: 'var(--muted)', display: 'inline-flex', alignItems: 'center', gap: 4, marginBottom: 20, textDecoration: 'none' }}>
+        ← {CATEGORY[item.category] || 'Catálogo'}
       </Link>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 32, alignItems: 'start' }}>
+      {/* Main grid */}
+      <div style={{ display: 'grid', gridTemplateColumns: '5fr 7fr', gap: 40, alignItems: 'start' }}>
 
-        {/* ── Photos ── */}
-        <div>
+        {/* ── Photos (reduced 25%) ── */}
+        <div style={{ maxWidth: 380 }}>
           <div style={{
             aspectRatio: '4/5', borderRadius: 14, overflow: 'hidden',
-            border: '1px solid var(--pink-border)', background: '#fafafa',
+            border: '1px solid var(--navy-border)', background: '#fafafa', position: 'relative',
           }}>
             {images.length > 0 ? (
               <img src={images[activePhoto]} alt={item.title}
                 style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
             ) : (
-              <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 60, background: 'var(--pink-light)' }}>🧸</div>
+              <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 60, background: 'var(--navy-light)' }}>🧸</div>
+            )}
+            {hasDiscount && (
+              <span style={{ position: 'absolute', top: 10, left: 10, background: '#ef4444', color: '#fff', fontSize: 12, fontWeight: 700, padding: '3px 9px', borderRadius: 99 }}>
+                -{discountPct}%
+              </span>
             )}
           </div>
           {images.length > 1 && (
@@ -91,8 +101,8 @@ export default function ItemDetail() {
               {images.map((url, i) => (
                 <div key={i} onClick={() => setActivePhoto(i)}
                   style={{
-                    width: 60, height: 75, borderRadius: 8, overflow: 'hidden', cursor: 'pointer',
-                    border: `2px solid ${i === activePhoto ? 'var(--pink)' : 'var(--pink-border)'}`,
+                    width: 52, height: 65, borderRadius: 8, overflow: 'hidden', cursor: 'pointer',
+                    border: `2px solid ${i === activePhoto ? 'var(--navy)' : 'var(--navy-border)'}`,
                   }}>
                   <img src={url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                 </div>
@@ -104,12 +114,12 @@ export default function ItemDetail() {
         {/* ── Info ── */}
         <div>
           {item.is_featured && (
-            <span style={{ background: 'var(--pink)', color: '#fff', fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 99, display: 'inline-block', marginBottom: 8 }}>
+            <span style={{ background: 'var(--navy)', color: '#fff', fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 99, display: 'inline-block', marginBottom: 10 }}>
               ⭐ Artículo destacado
             </span>
           )}
 
-          <h1 style={{ fontSize: 22, fontWeight: 800, lineHeight: 1.3, marginBottom: 8 }}>{item.title}</h1>
+          <h1 style={{ fontSize: 22, fontWeight: 800, lineHeight: 1.3, marginBottom: 10, color: 'var(--navy)' }}>{item.title}</h1>
 
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 16 }}>
             <span className={`tag ${CONDITION_TAG[item.condition] || 'tag-gray'}`}>
@@ -121,87 +131,70 @@ export default function ItemDetail() {
             {item.color && <span className="tag tag-gray">{item.color}</span>}
           </div>
 
-          <div style={{ fontSize: 30, fontWeight: 800, color: 'var(--pink)', marginBottom: 4 }}>
-            ${Number(item.selling_price).toLocaleString('es-MX')} <span style={{ fontSize: 16, fontWeight: 400, color: 'var(--muted)' }}>MXN</span>
+          {/* Price */}
+          <div style={{ marginBottom: 16 }}>
+            <div style={{ fontSize: 32, fontWeight: 900, color: 'var(--navy)', lineHeight: 1 }}>
+              ${Number(item.selling_price).toLocaleString('es-MX')}
+              <span style={{ fontSize: 16, fontWeight: 400, color: 'var(--muted)', marginLeft: 6 }}>MXN</span>
+            </div>
+            {hasDiscount && (
+              <div style={{ fontSize: 14, color: 'var(--muted)', textDecoration: 'line-through', marginTop: 4 }}>
+                Antes: ${Number(item.original_price).toLocaleString('es-MX')}
+              </div>
+            )}
           </div>
 
           {item.description && (
-            <p style={{ fontSize: 14, color: 'var(--text)', lineHeight: 1.6, marginBottom: 20 }}>
+            <p style={{ fontSize: 14, color: 'var(--text)', lineHeight: 1.7, marginBottom: 22, borderLeft: '3px solid var(--navy-border)', paddingLeft: 12 }}>
               {item.description}
             </p>
           )}
 
-          {/* ── Shipping selector ── */}
-          <div style={{ background: 'var(--pink-light)', borderRadius: 10, padding: 14, marginBottom: 16 }}>
-            <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>📦 Método de entrega</div>
-            {[
-              { value: 'pickup', label: '📍 Recoger en punto de entrega (CDMX)' },
-              { value: 'delivery_cdmx', label: '🛵 Entrega a domicilio en CDMX' },
-              { value: 'parcel', label: '📬 Paquetería a todo México' },
-            ].map(opt => (
-              <label key={opt.value} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, cursor: 'pointer', fontSize: 13 }}>
-                <input type="radio" name="shipping" value={opt.value}
-                  checked={shipping === opt.value}
-                  onChange={() => setShipping(opt.value)} />
-                {opt.label}
-              </label>
-            ))}
-            {shipping !== 'pickup' && (
-              <input type="text" placeholder="Calle, colonia, ciudad, CP"
-                value={address} onChange={e => setAddress(e.target.value)}
-                style={{
-                  width: '100%', marginTop: 8, padding: '8px 10px',
-                  border: '1.5px solid var(--pink-border)', borderRadius: 8,
-                  fontSize: 13, outline: 'none', fontFamily: 'inherit',
-                }} />
-            )}
-          </div>
+          {/* Cart button */}
+          <button
+            className={inCart ? 'btn btn-outline' : 'btn btn-primary'}
+            style={{ width: '100%', padding: '14px', fontSize: 16, marginBottom: 10, fontWeight: 700 }}
+            onClick={handleCart}
+          >
+            {inCart ? '✓ Quitar del carrito' : '🛒 Agregar al carrito'}
+          </button>
 
-          {error && (
-            <div style={{ background: '#fff1f0', border: '1px solid #ffccc7', borderRadius: 8, padding: '10px 14px', marginBottom: 14, fontSize: 13, color: '#cf1322' }}>
-              {error}
+          {cartMsg && (
+            <div style={{ background: '#f6ffed', border: '1px solid #b7eb8f', borderRadius: 8, padding: '8px 14px', fontSize: 13, color: '#389e0d', marginBottom: 10, textAlign: 'center' }}>
+              {cartMsg} — <Link to="/carrito" style={{ color: '#389e0d', fontWeight: 700 }}>Ver carrito</Link>
             </div>
           )}
 
-          {/* ── CTA ── */}
-          <button
-            className="btn btn-primary"
-            style={{ width: '100%', padding: '14px', fontSize: 16, marginBottom: 10 }}
-            onClick={handleBuy}
-            disabled={buyMutation.isPending}
-          >
-            {buyMutation.isPending ? 'Redirigiendo a pago…' : '💳 Comprar ahora — MercadoPago'}
-          </button>
+          {/* WhatsApp */}
+          <a href="https://wa.me/523319537644?text=Hola%2C%20me%20interesa%20el%20art%C3%ADculo%3A%20" target="_blank" rel="noreferrer"
+            className="btn btn-outline"
+            style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '12px', fontSize: 14, color: '#16a34a', borderColor: '#16a34a', marginBottom: 14 }}>
+            💬 Preguntar por WhatsApp
+          </a>
 
-          {!isAuthenticated && (
-            <p style={{ fontSize: 12, color: 'var(--muted)', textAlign: 'center' }}>
-              Necesitas{' '}
-              <Link to={`/login?redirect=${encodeURIComponent('/articulo/' + id)}`} style={{ color: 'var(--pink)', fontWeight: 600 }}>
-                iniciar sesión
-              </Link>
-              {' '}o{' '}
-              <Link to="/registro" style={{ color: 'var(--pink)', fontWeight: 600 }}>registrarte</Link>
-              {' '}para comprar.
-            </p>
-          )}
-
-          <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-            <a href="https://wa.me/525500000000" target="_blank" rel="noreferrer"
-              className="btn btn-green btn-sm" style={{ flex: 1, justifyContent: 'center' }}>
-              💬 Preguntar por WhatsApp
-            </a>
-          </div>
-
-          <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 12, textAlign: 'center' }}>
-            SKU: {item.sku} · Pago 100% seguro con MercadoPago
+          <div style={{ fontSize: 11, color: 'var(--muted)', textAlign: 'center' }}>
+            SKU: {item.sku} · Pago 100% seguro
           </div>
         </div>
       </div>
 
-      {/* Mobile: stack columns on small screens */}
+      {/* ── Recomendado ── */}
+      {item.category && (
+        <div style={{ marginTop: 56 }}>
+          <div style={{ borderTop: '2px solid var(--navy-border)', paddingTop: 40 }}>
+            <ItemSlideshow
+              title="Recomendado para ti"
+              queryKey={['related', item.category, String(item.id)]}
+              params={{ category: item.category, limit: 10 }}
+              viewAllLink={CATEGORY_LINK[item.category]}
+            />
+          </div>
+        </div>
+      )}
+
       <style>{`
         @media (max-width: 640px) {
-          .item-grid { grid-template-columns: 1fr !important; }
+          .item-detail-grid { grid-template-columns: 1fr !important; }
         }
       `}</style>
     </div>
