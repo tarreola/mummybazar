@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 
-from app.api.v1 import auth, sellers, buyers, items, orders, dashboard, whatsapp, storefront
+from app.api.v1 import auth, sellers, buyers, items, orders, dashboard, whatsapp, storefront, seed
 
 api_router = APIRouter(prefix="/api/v1")
 
@@ -12,3 +12,4 @@ api_router.include_router(orders.router)
 api_router.include_router(dashboard.router)
 api_router.include_router(whatsapp.router)
 api_router.include_router(storefront.router)
+api_router.include_router(seed.router)
