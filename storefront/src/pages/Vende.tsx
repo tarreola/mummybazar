@@ -252,6 +252,11 @@ export default function Vende() {
                         Tu ganancia: ${Number(item.seller_payout).toLocaleString('es-MX')}
                       </div>
                     )}
+                  {item.seller_paid && (
+                      <div style={{ fontSize: 11, color: '#389e0d', fontWeight: 600, marginTop: 2 }}>
+                        ✅ Artículo pagado a vendedor
+                      </div>
+                    )}
                   </div>
                 </div>
               )

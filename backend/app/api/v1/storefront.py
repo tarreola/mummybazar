@@ -654,13 +654,18 @@ def my_items(seller: Seller = Depends(_require_seller), db: Session = Depends(ge
         .order_by(Item.created_at.desc())
         .all()
     )
-    return [
-        _item_out(i, full=True) | {
-            "status": i.status.value,
-            "seller_payout": float(i.seller_payout) if i.seller_payout else None,
-        }
-        for i in items
-    ]
+    result = []
+    for i in items:
+        order = db.query(Order).filter(Order.item_id == i.id).first()
+        seller_paid = bool(order and order.seller_paid == 1) if order else False
+        result.append(
+            _item_out(i, full=True) | {
+                "status": i.status.value,
+                "seller_payout": float(i.seller_payout) if i.seller_payout else None,
+                "seller_paid": seller_paid,
+            }
+        )
+    return result
 
 
 @router.post("/my-items", status_code=201)
