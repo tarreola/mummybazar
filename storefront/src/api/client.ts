@@ -38,5 +38,6 @@ export const uploadMyItemImage = (id: number, file: File) => {
   return api.post(`/my-items/${id}/images`, form, { headers: { 'Content-Type': 'multipart/form-data' } })
 }
 export const checkout       = (data: object) => api.post('/checkout', data)
+export const checkoutCart   = (data: object) => api.post('/checkout-cart', data)
 
 export default api

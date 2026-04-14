@@ -110,6 +110,12 @@ class CheckoutRequest(BaseModel):
     shipping_address: Optional[str] = None
 
 
+class CartCheckoutRequest(BaseModel):
+    item_ids: List[int]
+    shipping_method: Optional[str] = None
+    shipping_address: Optional[str] = None
+
+
 # ── Order tracking (public, no auth) ─────────────────────────────────────────
 @router.get("/order-tracking/{order_number}")
 def order_tracking(order_number: str, db: Session = Depends(get_db)):
@@ -381,6 +387,110 @@ def create_checkout(
     }
 
 
+# ── Cart checkout (buyer auth, multiple items) ────────────────────────────────
+@router.post("/checkout-cart")
+def create_cart_checkout(
+    payload: CartCheckoutRequest,
+    request: Request,
+    buyer: Buyer = Depends(_require_buyer),
+    db: Session = Depends(get_db),
+):
+    if not payload.item_ids:
+        raise HTTPException(status_code=400, detail="El carrito está vacío")
+
+    # Load all available items
+    items = db.query(Item).filter(
+        Item.id.in_(payload.item_ids),
+        Item.status == ItemStatus.LISTED,
+    ).all()
+
+    if not items:
+        raise HTTPException(status_code=404, detail="Ningún artículo disponible")
+
+    unavailable = set(payload.item_ids) - {i.id for i in items}
+    if unavailable:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Artículos ya no disponibles: {list(unavailable)}",
+        )
+
+    year = datetime.now().year
+    base_count = db.query(func.count(Order.id)).scalar()
+
+    # Batch reference used as MP external_reference
+    batch_ref = f"CART-{year}-{base_count + 1:05d}"
+
+    back_urls = {
+        "success": f"https://www.elroperodemar.com/pago/exitoso?order={batch_ref}",
+        "failure": f"https://www.elroperodemar.com/pago/fallido?order={batch_ref}",
+        "pending": f"https://www.elroperodemar.com/pago/pendiente?order={batch_ref}",
+    }
+
+    total = sum(float(i.selling_price) for i in items)
+    buyer_email = buyer.email or f"{buyer.phone.replace('+', '')}@elroperodemar.mx"
+
+    # Single MP preference with all items
+    mp_items = [
+        {
+            "id": str(i.id),
+            "title": i.title[:256],
+            "quantity": 1,
+            "unit_price": float(i.selling_price),
+            "currency_id": "MXN",
+        }
+        for i in items
+    ]
+    try:
+        pref_data = {
+            "items": mp_items,
+            "payer": {"email": buyer_email},
+            "back_urls": back_urls,
+            "auto_return": "approved",
+            "external_reference": batch_ref,
+            "statement_descriptor": "El Ropero de Mar",
+        }
+        result = mp_service.sdk.preference().create(pref_data)
+        if result["status"] != 201:
+            raise RuntimeError(result["response"])
+        mp_preference_id = result["response"]["id"]
+        checkout_url = result["response"]["init_point"]
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Error MercadoPago: {str(e)}")
+
+    now = datetime.now(timezone.utc)
+    orders_created = []
+    for idx, item in enumerate(items):
+        order_number = f"ORD-{year}-{base_count + idx + 1:05d}"
+        order = Order(
+            order_number=order_number,
+            buyer_id=buyer.id,
+            item_id=item.id,
+            amount=item.selling_price,
+            commission_amount=item.commission or 0,
+            seller_payout_amount=item.seller_payout or 0,
+            shipping_method=payload.shipping_method,
+            shipping_address=payload.shipping_address,
+            status=OrderStatus.PENDING_PAYMENT,
+            mp_preference_id=mp_preference_id,
+            notes=f"batch:{batch_ref}",
+        )
+        db.add(order)
+        item.status = ItemStatus.SOLD
+        item.sold_at = now
+        orders_created.append(order_number)
+
+    db.commit()
+
+    return {
+        "batch_ref": batch_ref,
+        "order_numbers": orders_created,
+        "checkout_url": checkout_url,
+        "mp_preference_id": mp_preference_id,
+        "total": total,
+        "items_count": len(items),
+    }
+
+
 # ── MercadoPago webhook ───────────────────────────────────────────────────────
 @router.post("/mp-webhook")
 async def mp_webhook(request: Request, db: Session = Depends(get_db)):
@@ -412,10 +522,61 @@ async def mp_webhook(request: Request, db: Session = Depends(get_db)):
     if payment.get("status") != "approved":
         return {"status": "not_approved", "mp_status": payment.get("status")}
 
-    external_ref = payment.get("external_reference")  # order_number
+    external_ref = payment.get("external_reference")
     if not external_ref:
         return {"status": "no_external_reference"}
 
+    mp_preference_id = payment.get("preference_id")
+
+    # ── Batch cart checkout (CART-YYYY-XXXXX) ────────────────────────────────
+    if external_ref.startswith("CART-") and mp_preference_id:
+        orders = db.query(Order).filter(
+            Order.mp_preference_id == mp_preference_id,
+            Order.status == OrderStatus.PENDING_PAYMENT,
+        ).all()
+        if not orders:
+            return {"status": "already_processed_or_not_found"}
+
+        buyer = db.query(Buyer).filter(Buyer.id == orders[0].buyer_id).first()
+        total = sum(float(o.amount) for o in orders)
+
+        for order in orders:
+            order.status = OrderStatus.PAID
+            order.mp_payment_id = payment_id
+        db.commit()
+
+        # Notify buyer once for the whole batch
+        if buyer:
+            try:
+                item_titles = []
+                for o in orders:
+                    it = db.query(Item).filter(Item.id == o.item_id).first()
+                    if it:
+                        item_titles.append(it.title)
+                whatsapp_service.notify_buyer_order_confirmed(
+                    buyer.phone, buyer.full_name,
+                    ", ".join(item_titles[:3]) + ("…" if len(item_titles) > 3 else ""),
+                    external_ref, total,
+                )
+            except Exception:
+                pass
+
+        # Notify each seller
+        for order in orders:
+            item = db.query(Item).filter(Item.id == order.item_id).first()
+            seller = db.query(Seller).filter(Seller.id == item.seller_id).first() if item and item.seller_id else None
+            if seller and item:
+                try:
+                    whatsapp_service.notify_seller_item_sold(
+                        seller.phone, seller.full_name, item.title,
+                        float(order.seller_payout_amount),
+                    )
+                except Exception:
+                    pass
+
+        return {"status": "ok", "batch": external_ref, "orders": len(orders)}
+
+    # ── Single item checkout (ORD-YYYY-XXXXX) ────────────────────────────────
     order = db.query(Order).filter(Order.order_number == external_ref).first()
     if not order:
         return {"status": "order_not_found"}
@@ -423,12 +584,10 @@ async def mp_webhook(request: Request, db: Session = Depends(get_db)):
     if order.status != OrderStatus.PENDING_PAYMENT:
         return {"status": "already_processed"}
 
-    # Mark order paid
     order.status = OrderStatus.PAID
     order.mp_payment_id = payment_id
     db.commit()
 
-    # WhatsApp notifications
     buyer = db.query(Buyer).filter(Buyer.id == order.buyer_id).first()
     item = db.query(Item).filter(Item.id == order.item_id).first()
     seller = db.query(Seller).filter(Seller.id == item.seller_id).first() if item else None
