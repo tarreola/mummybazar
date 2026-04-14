@@ -93,6 +93,17 @@ class LoginRequest(BaseModel):
     role: str   # "buyer" | "seller"
 
 
+class SubmitItemRequest(BaseModel):
+    title: str
+    category: str
+    condition: str
+    brand: Optional[str] = None
+    size: Optional[str] = None
+    color: Optional[str] = None
+    description: Optional[str] = None
+    selling_price: Optional[float] = None
+
+
 class CheckoutRequest(BaseModel):
     item_id: int
     shipping_method: Optional[str] = None
@@ -484,7 +495,63 @@ def my_items(seller: Seller = Depends(_require_seller), db: Session = Depends(ge
         .order_by(Item.created_at.desc())
         .all()
     )
-    return [_item_out(i, full=True) | {"status": i.status.value} for i in items]
+    return [
+        _item_out(i, full=True) | {
+            "status": i.status.value,
+            "seller_payout": float(i.seller_payout) if i.seller_payout else None,
+        }
+        for i in items
+    ]
+
+
+@router.post("/my-items", status_code=201)
+def submit_item(
+    payload: SubmitItemRequest,
+    seller: Seller = Depends(_require_seller),
+    db: Session = Depends(get_db),
+):
+    if not seller.is_approved:
+        raise HTTPException(status_code=403, detail="Tu cuenta aún no ha sido aprobada")
+    # Validate enums
+    try:
+        category = ItemCategory(payload.category)
+    except ValueError:
+        raise HTTPException(status_code=400, detail=f"Categoría inválida: {payload.category}")
+    try:
+        condition = ItemCondition(payload.condition)
+    except ValueError:
+        raise HTTPException(status_code=400, detail=f"Estado inválido: {payload.condition}")
+
+    # Auto-generate SKU
+    count = db.query(func.count(Item.id)).scalar() + 1
+    year = datetime.now().year
+    sku = f"VND-{year}-{count:05d}"
+    # Ensure SKU uniqueness
+    while db.query(Item).filter(Item.sku == sku).first():
+        count += 1
+        sku = f"VND-{year}-{count:05d}"
+
+    price = payload.selling_price or 0
+    commission_pct = 0.30
+    item = Item(
+        sku=sku,
+        title=payload.title,
+        category=category,
+        condition=condition,
+        brand=payload.brand,
+        size=payload.size,
+        color=payload.color,
+        description=payload.description,
+        selling_price=price,
+        seller_payout=round(price * (1 - commission_pct), 2) if price else None,
+        commission=round(price * commission_pct, 2) if price else None,
+        seller_id=seller.id,
+        status=ItemStatus.RECEIVED,
+    )
+    db.add(item)
+    db.commit()
+    db.refresh(item)
+    return {"id": item.id, "sku": item.sku, "status": item.status.value}
 
 
 # ── Profile ───────────────────────────────────────────────────────────────────

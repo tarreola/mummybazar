@@ -31,6 +31,7 @@ export const login          = (data: object) => api.post('/login', data)
 export const getMe          = ()             => api.get('/me')
 export const getMyOrders    = ()             => api.get('/my-orders')
 export const getMyItems     = ()             => api.get('/my-items')
+export const submitItem     = (data: object) => api.post('/my-items', data)
 export const checkout       = (data: object) => api.post('/checkout', data)
 
 export default api
