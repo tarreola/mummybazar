@@ -13,8 +13,8 @@ router = APIRouter(prefix="/buyers", tags=["buyers"])
 
 
 @router.get("/", response_model=List[BuyerOut])
-def list_buyers(skip: int = 0, limit: int = 100, db: Session = Depends(get_db), _=Depends(get_current_user)):
-    buyers = db.query(Buyer).offset(skip).limit(limit).all()
+def list_buyers(skip: int = 0, limit: int = 5000, db: Session = Depends(get_db), _=Depends(get_current_user)):
+    buyers = db.query(Buyer).order_by(Buyer.created_at.desc()).offset(skip).limit(limit).all()
     for b in buyers:
         b.total_orders = db.query(func.count(Order.id)).filter(Order.buyer_id == b.id).scalar() or 0
     return buyers
