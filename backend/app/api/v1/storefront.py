@@ -179,7 +179,7 @@ def catalog(
     if gender:
         q = q.filter(Item.gender == gender)
     if size:
-        q = q.filter(Item.size.ilike(f"%{size}%"))
+        q = q.filter(Item.size == size)
     if has_discount:
         q = q.filter(Item.original_price.isnot(None), Item.original_price > Item.selling_price)
 

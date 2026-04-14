@@ -16,13 +16,13 @@ const CATEGORIES = [
 ]
 
 const ETAPAS = [
-  { label: '0 meses',    key: '0m',  size: 'RN' },
-  { label: '3 meses',    key: '3m',  size: '0-3' },
-  { label: '6 meses',    key: '6m',  size: '3-6' },
-  { label: '9 meses',    key: '9m',  size: '6-9' },
-  { label: '12 meses',   key: '12m', size: '9-12' },
-  { label: '18 meses',   key: '18m', size: '12-18' },
-  { label: '2 a 5+ años', key: '2a', size: 'Talla' },
+  { label: '0 meses',     key: '0m',  size: '0m' },
+  { label: '3 meses',     key: '3m',  size: '3m' },
+  { label: '6 meses',     key: '6m',  size: '6m' },
+  { label: '9 meses',     key: '9m',  size: '9m' },
+  { label: '12 meses',    key: '12m', size: '12m' },
+  { label: '18 meses',    key: '18m', size: '18m' },
+  { label: '2 a 5+ años', key: '2a',  size: '2a+' },
 ]
 
 const PRECIOS = [

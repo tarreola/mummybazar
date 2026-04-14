@@ -33,6 +33,16 @@ const CONDITIONS = [
   { value: 'good',     label: 'Buen estado' },
   { value: 'fair',     label: 'Estado regular' },
 ]
+const SIZES = [
+  { value: '',    label: 'Selecciona una talla' },
+  { value: '0m',  label: '0 Meses' },
+  { value: '3m',  label: '3 Meses' },
+  { value: '6m',  label: '6 Meses' },
+  { value: '9m',  label: '9 Meses' },
+  { value: '12m', label: '12 Meses' },
+  { value: '18m', label: '18 Meses' },
+  { value: '2a+', label: '2 a 5+ Años' },
+]
 
 const EMPTY_ITEM = { title: '', category: 'clothing', condition: 'like_new', brand: '', size: '', color: '', description: '', selling_price: '' }
 
@@ -298,8 +308,10 @@ export default function Vende() {
                     <input value={itemForm.brand} onChange={setItem('brand')} placeholder="Nike, Graco..." />
                   </div>
                   <div className="form-group" style={{ marginBottom: 0 }}>
-                    <label>Talla / Tamaño</label>
-                    <input value={itemForm.size} onChange={setItem('size')} placeholder="3-6m, Talla 2..." />
+                    <label>Talla</label>
+                    <select value={itemForm.size} onChange={setItem('size')} style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: '1.5px solid var(--navy-border)', fontSize: 14 }}>
+                      {SIZES.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+                    </select>
                   </div>
                 </div>
                 <div className="form-group" style={{ marginBottom: 0 }}>

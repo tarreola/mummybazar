@@ -4,16 +4,26 @@ import { getItems } from '../api/client'
 import ItemCard from '../components/ItemCard'
 
 const COND_OPTIONS = [
-  { k: 'all', label: 'Cualquier condición' },
+  { k: 'all',      label: 'Cualquier condición' },
   { k: 'like_new', label: 'Como nuevo' },
-  { k: 'good', label: 'Bueno' },
-  { k: 'fair', label: 'Regular' },
+  { k: 'good',     label: 'Bueno' },
+  { k: 'fair',     label: 'Regular' },
 ]
 const GENDER_OPTIONS = [
-  { k: 'all', label: 'Para todos' },
-  { k: 'girl', label: 'Niña' },
-  { k: 'boy', label: 'Niño' },
+  { k: 'all',    label: 'Para todos' },
+  { k: 'girl',   label: 'Niña' },
+  { k: 'boy',    label: 'Niño' },
   { k: 'unisex', label: 'Unisex' },
+]
+const SIZE_OPTIONS = [
+  { k: 'all', label: 'Todas' },
+  { k: '0m',  label: '0 Meses' },
+  { k: '3m',  label: '3 Meses' },
+  { k: '6m',  label: '6 Meses' },
+  { k: '9m',  label: '9 Meses' },
+  { k: '12m', label: '12 Meses' },
+  { k: '18m', label: '18 Meses' },
+  { k: '2a+', label: '2 a 5+ Años' },
 ]
 
 const CATEGORY_META: Record<string, { label: string; emoji: string; showGender?: boolean; showSize?: boolean; desc: string }> = {
@@ -31,7 +41,7 @@ export default function CategoryPage({ category }: Props) {
   const meta = CATEGORY_META[category] || { label: category, emoji: '🏷️', desc: '' }
   const [condition, setCondition] = useState('all')
   const [gender, setGender] = useState('all')
-  const [size, setSize] = useState('')
+  const [size, setSize] = useState('all')
 
   const { data, isLoading } = useQuery({
     queryKey: ['sf-cat', category, condition, gender, size],
@@ -39,7 +49,7 @@ export default function CategoryPage({ category }: Props) {
       category,
       ...(condition !== 'all' ? { condition } : {}),
       ...(gender !== 'all' ? { gender } : {}),
-      ...(size ? { size } : {}),
+      ...(size !== 'all' ? { size } : {}),
       limit: 60,
     }).then(r => r.data),
   })
@@ -75,9 +85,7 @@ export default function CategoryPage({ category }: Props) {
         {meta.showSize && (
           <>
             <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--muted)', marginLeft: 8, marginRight: 4 }}>Talla:</span>
-            <input placeholder="Ej: 3-6m, Talla 2…" value={size} onChange={e => setSize(e.target.value)}
-              style={{ padding: '5px 10px', borderRadius: 8, border: '1.5px solid var(--navy-border)', fontSize: 13, outline: 'none', width: 130 }} />
-            {size && <button onClick={() => setSize('')} className="btn btn-sm btn-outline">✕</button>}
+            {SIZE_OPTIONS.map(o => chip(o.label, size === o.k, () => setSize(o.k)))}
           </>
         )}
       </div>

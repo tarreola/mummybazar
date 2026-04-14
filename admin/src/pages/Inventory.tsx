@@ -41,6 +41,15 @@ const CATEGORY_LABEL: Record<string, string> = {
 const CONDITION_LABEL: Record<string, string> = {
   like_new: 'Como nuevo', good: 'Bueno', fair: 'Regular',
 }
+const SIZE_OPTIONS = [
+  { value: '0m',  label: '0 Meses' },
+  { value: '3m',  label: '3 Meses' },
+  { value: '6m',  label: '6 Meses' },
+  { value: '9m',  label: '9 Meses' },
+  { value: '12m', label: '12 Meses' },
+  { value: '18m', label: '18 Meses' },
+  { value: '2a+', label: '2 a 5+ Años' },
+]
 
 const parseImages = (images?: string | null): string[] =>
   images ? images.split(',').filter(Boolean) : []
@@ -515,7 +524,11 @@ const { data: items = [], isLoading } = useQuery<Item[]>({
           </Space>
           <Space style={{ width: '100%' }} styles={{ item: { flex: 1 } }}>
             <Form.Item name="brand" label="Marca"><Input /></Form.Item>
-            <Form.Item name="size" label="Talla"><Input placeholder="ej. 3-6m" /></Form.Item>
+            <Form.Item name="size" label="Talla">
+                <Select allowClear placeholder="Selecciona">
+                  {SIZE_OPTIONS.map(s => <Option key={s.value} value={s.value}>{s.label}</Option>)}
+                </Select>
+              </Form.Item>
             <Form.Item name="measurements" label="Medidas"><Input placeholder="ej. 30x40cm" /></Form.Item>
           </Space>
           <Space style={{ width: '100%' }} styles={{ item: { flex: 1 } }}>
