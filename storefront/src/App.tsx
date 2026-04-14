@@ -10,6 +10,7 @@ import CategoryPage from './pages/CategoryPage'
 import Descuentos from './pages/Descuentos'
 import Vende from './pages/Vende'
 import Cart from './pages/Cart'
+import Checkout from './pages/Checkout'
 import Seguimiento from './pages/Seguimiento'
 import PaymentResult from './pages/PaymentResult'
 import MyItems from './pages/MyItems'
@@ -53,8 +54,9 @@ export default function App() {
                 <Route path="/login" element={<Navigate to="/vende" replace />} />
                 <Route path="/registro" element={<Navigate to="/vende" replace />} />
 
-                {/* Cart */}
+                {/* Cart + Checkout */}
                 <Route path="/carrito" element={<Cart />} />
+                <Route path="/checkout" element={<Checkout />} />
 
                 {/* Tracking */}
                 <Route path="/seguimiento" element={<Seguimiento />} />

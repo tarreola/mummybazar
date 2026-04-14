@@ -39,5 +39,6 @@ export const uploadMyItemImage = (id: number, file: File) => {
 }
 export const checkout       = (data: object) => api.post('/checkout', data)
 export const checkoutCart   = (data: object) => api.post('/checkout-cart', data)
+export const checkoutGuest  = (data: object) => api.post('/checkout-guest', data)
 
 export default api

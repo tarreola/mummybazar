@@ -116,6 +116,13 @@ class CartCheckoutRequest(BaseModel):
     shipping_address: Optional[str] = None
 
 
+class GuestCheckoutRequest(BaseModel):
+    item_ids: List[int]
+    full_name: str
+    phone: str
+    email: Optional[str] = None
+
+
 # ── Order tracking (public, no auth) ─────────────────────────────────────────
 @router.get("/order-tracking/{order_number}")
 def order_tracking(order_number: str, db: Session = Depends(get_db)):
@@ -470,6 +477,135 @@ def create_cart_checkout(
             seller_payout_amount=item.seller_payout or 0,
             shipping_method=payload.shipping_method,
             shipping_address=payload.shipping_address,
+            status=OrderStatus.PENDING_PAYMENT,
+            mp_preference_id=mp_preference_id,
+            notes=f"batch:{batch_ref}",
+        )
+        db.add(order)
+        item.status = ItemStatus.SOLD
+        item.sold_at = now
+        orders_created.append(order_number)
+
+    db.commit()
+
+    return {
+        "batch_ref": batch_ref,
+        "order_numbers": orders_created,
+        "checkout_url": checkout_url,
+        "mp_preference_id": mp_preference_id,
+        "total": total,
+        "items_count": len(items),
+    }
+
+
+# ── Guest checkout (no auth required) ────────────────────────────────────────
+@router.post("/checkout-guest")
+def guest_checkout(
+    payload: GuestCheckoutRequest,
+    db: Session = Depends(get_db),
+):
+    if not payload.item_ids:
+        raise HTTPException(status_code=400, detail="El carrito está vacío")
+
+    # Load available items
+    items = db.query(Item).filter(
+        Item.id.in_(payload.item_ids),
+        Item.status == ItemStatus.LISTED,
+    ).all()
+
+    if not items:
+        raise HTTPException(status_code=404, detail="Ningún artículo disponible")
+
+    unavailable = set(payload.item_ids) - {i.id for i in items}
+    if unavailable:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Artículos ya no disponibles: {list(unavailable)}",
+        )
+
+    # Get or create buyer by phone (upsert)
+    buyer = db.query(Buyer).filter(Buyer.phone == payload.phone).first()
+    if buyer:
+        # Update name/email if provided
+        if payload.full_name:
+            buyer.full_name = payload.full_name
+        if payload.email and not buyer.email:
+            buyer.email = payload.email
+        db.commit()
+    else:
+        buyer = Buyer(
+            full_name=payload.full_name,
+            phone=payload.phone,
+            email=payload.email,
+            is_active=True,
+        )
+        db.add(buyer)
+        db.commit()
+        db.refresh(buyer)
+        # Welcome WhatsApp
+        try:
+            whatsapp_service.notify_buyer_welcome(buyer.phone, buyer.full_name)
+        except Exception:
+            pass
+
+    year = datetime.now().year
+    base_count = db.query(func.count(Order.id)).scalar()
+    batch_ref = f"CART-{year}-{base_count + 1:05d}"
+
+    back_urls = {
+        "success": f"https://www.elroperodemar.com/pago/exitoso?order={batch_ref}",
+        "failure": f"https://www.elroperodemar.com/pago/fallido?order={batch_ref}",
+        "pending": f"https://www.elroperodemar.com/pago/pendiente?order={batch_ref}",
+    }
+
+    total = sum(float(i.selling_price) for i in items)
+    buyer_email = buyer.email or f"{buyer.phone.replace('+', '')}@elroperodemar.mx"
+
+    mp_items = [
+        {
+            "id": str(i.id),
+            "title": i.title[:256],
+            "quantity": 1,
+            "unit_price": float(i.selling_price),
+            "currency_id": "MXN",
+        }
+        for i in items
+    ]
+    try:
+        pref_data = {
+            "items": mp_items,
+            "payer": {
+                "name": buyer.full_name,
+                "email": buyer_email,
+                "phone": {"number": buyer.phone},
+            },
+            "back_urls": back_urls,
+            "auto_return": "approved",
+            "external_reference": batch_ref,
+            "statement_descriptor": "El Ropero de Mar",
+        }
+        result = mp_service.sdk.preference().create(pref_data)
+        if result["status"] != 201:
+            raise RuntimeError(result["response"])
+        mp_preference_id = result["response"]["id"]
+        checkout_url = result["response"]["init_point"]
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Error MercadoPago: {str(e)}")
+
+    now = datetime.now(timezone.utc)
+    orders_created = []
+    for idx, item in enumerate(items):
+        order_number = f"ORD-{year}-{base_count + idx + 1:05d}"
+        order = Order(
+            order_number=order_number,
+            buyer_id=buyer.id,
+            buyer_name=buyer.full_name,
+            buyer_phone=buyer.phone,
+            buyer_email=buyer.email,
+            item_id=item.id,
+            amount=item.selling_price,
+            commission_amount=item.commission or 0,
+            seller_payout_amount=item.seller_payout or 0,
             status=OrderStatus.PENDING_PAYMENT,
             mp_preference_id=mp_preference_id,
             notes=f"batch:{batch_ref}",

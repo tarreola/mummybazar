@@ -1,38 +1,14 @@
 import { Link, useNavigate } from 'react-router-dom'
-import { useMutation } from '@tanstack/react-query'
 import { useCart } from '../store/cart'
-import { useAuth } from '../store/auth'
-import { checkoutCart } from '../api/client'
 
 export default function Cart() {
   const { items, remove, clear, count } = useCart()
-  const { isAuthenticated, user } = useAuth()
   const navigate = useNavigate()
 
   const total = items.reduce((s, i) => s + i.price, 0)
 
-  const buyMutation = useMutation({
-    mutationFn: () => checkoutCart({
-      item_ids: items.map(i => i.id),
-      shipping_method: 'pickup',
-    }),
-    onSuccess: (res) => {
-      clear()
-      window.location.href = res.data.checkout_url
-    },
-    onError: (e: any) => {
-      const detail = e.response?.data?.detail
-      alert(detail || 'Error al procesar el pago. Intenta de nuevo.')
-    },
-  })
-
   const handleCheckout = () => {
-    if (!isAuthenticated) { navigate('/vende'); return }
-    if (user?.role !== 'buyer') {
-      alert('Para comprar necesitas una cuenta de compradora, no de vendedora.')
-      return
-    }
-    buyMutation.mutate()
+    navigate('/checkout')
   }
 
   if (count === 0) return (
@@ -117,20 +93,14 @@ export default function Cart() {
           className="btn btn-primary"
           style={{ width: '100%', padding: '16px', fontSize: 17, fontWeight: 800, borderRadius: 12 }}
           onClick={handleCheckout}
-          disabled={buyMutation.isPending}
         >
-          {buyMutation.isPending
-            ? 'Redirigiendo a pago…'
-            : `💳 Pagar $${total.toLocaleString('es-MX', { minimumFractionDigits: 0 })} MXN`}
+          {`Proceder al pago — $${total.toLocaleString('es-MX', { minimumFractionDigits: 0 })} MXN →`}
         </button>
 
-        {!isAuthenticated && (
-          <p style={{ fontSize: 12, color: 'var(--muted)', textAlign: 'center', marginTop: 10 }}>
-            Necesitas{' '}
-            <Link to="/vende" style={{ color: 'var(--navy)', fontWeight: 600 }}>iniciar sesión como compradora</Link>
-            {' '}para continuar.
-          </p>
-        )}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, justifyContent: 'center', marginTop: 10 }}>
+          <span style={{ fontSize: 16 }}>🔒</span>
+          <span style={{ fontSize: 12, color: 'var(--muted)' }}>Pago 100% seguro con MercadoPago</span>
+        </div>
       </div>
     </div>
   )
