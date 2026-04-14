@@ -31,7 +31,12 @@ export const login          = (data: object) => api.post('/login', data)
 export const getMe          = ()             => api.get('/me')
 export const getMyOrders    = ()             => api.get('/my-orders')
 export const getMyItems     = ()             => api.get('/my-items')
-export const submitItem     = (data: object) => api.post('/my-items', data)
+export const submitItem        = (data: object) => api.post('/my-items', data)
+export const uploadMyItemImage = (id: number, file: File) => {
+  const form = new FormData()
+  form.append('file', file)
+  return api.post(`/my-items/${id}/images`, form, { headers: { 'Content-Type': 'multipart/form-data' } })
+}
 export const checkout       = (data: object) => api.post('/checkout', data)
 
 export default api

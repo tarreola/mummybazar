@@ -1,7 +1,7 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAuth } from '../store/auth'
-import { registerSeller, login as sfLogin, getMyItems, submitItem } from '../api/client'
+import { registerSeller, login as sfLogin, getMyItems, submitItem, uploadMyItemImage } from '../api/client'
 
 // Status display config
 function itemBadge(status: string) {
@@ -51,6 +51,10 @@ export default function Vende() {
   const [showAddItem, setShowAddItem] = useState(false)
   const [itemForm, setItemForm] = useState(EMPTY_ITEM)
   const [itemError, setItemError] = useState('')
+  const [photos, setPhotos] = useState<File[]>([])
+  const [photoPreviews, setPhotoPreviews] = useState<string[]>([])
+  const [uploading, setUploading] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   // My items
   const { data: myItems = [] } = useQuery({
@@ -81,18 +85,51 @@ export default function Vende() {
   })
 
   const addItemMutation = useMutation({
-    mutationFn: () => submitItem({
-      ...itemForm,
-      selling_price: itemForm.selling_price ? Number(itemForm.selling_price) : undefined,
-    }),
+    mutationFn: async () => {
+      // 1. Create item
+      const res = await submitItem({
+        ...itemForm,
+        selling_price: itemForm.selling_price ? Number(itemForm.selling_price) : undefined,
+      })
+      const itemId = res.data.id
+      // 2. Upload photos sequentially
+      if (photos.length > 0) {
+        setUploading(true)
+        for (const file of photos) {
+          await uploadMyItemImage(itemId, file)
+        }
+        setUploading(false)
+      }
+    },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['my-items'] })
       setShowAddItem(false)
       setItemForm(EMPTY_ITEM)
+      setPhotos([])
+      setPhotoPreviews([])
       setItemError('')
     },
-    onError: (e: any) => setItemError(e.response?.data?.detail || 'Error al enviar el artículo'),
+    onError: (e: any) => { setUploading(false); setItemError(e.response?.data?.detail || 'Error al enviar el artículo') },
   })
+
+  const handlePhotoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || [])
+    const remaining = 6 - photos.length
+    const toAdd = files.slice(0, remaining)
+    setPhotos(p => [...p, ...toAdd])
+    toAdd.forEach(f => {
+      const reader = new FileReader()
+      reader.onload = ev => setPhotoPreviews(p => [...p, ev.target?.result as string])
+      reader.readAsDataURL(f)
+    })
+    // Reset input so same file can be re-selected
+    e.target.value = ''
+  }
+
+  const removePhoto = (idx: number) => {
+    setPhotos(p => p.filter((_, i) => i !== idx))
+    setPhotoPreviews(p => p.filter((_, i) => i !== idx))
+  }
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault(); setError('')
@@ -215,11 +252,11 @@ export default function Vende() {
         {/* Add item modal */}
         {showAddItem && (
           <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.45)', zIndex: 500, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}
-            onClick={e => { if (e.target === e.currentTarget) setShowAddItem(false) }}>
+            onClick={e => { if (e.target === e.currentTarget) { setShowAddItem(false); setPhotos([]); setPhotoPreviews([]) } }}>
             <div style={{ background: '#fff', borderRadius: 16, padding: 28, width: '100%', maxWidth: 520, maxHeight: '90vh', overflowY: 'auto' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
                 <h2 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: 'var(--navy)' }}>Agregar artículo</h2>
-                <button onClick={() => setShowAddItem(false)} style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: 'var(--muted)', lineHeight: 1 }}>✕</button>
+                <button onClick={() => { setShowAddItem(false); setPhotos([]); setPhotoPreviews([]) }} style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: 'var(--muted)', lineHeight: 1 }}>✕</button>
               </div>
               <form onSubmit={handleAddItem} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                 <div className="form-group" style={{ marginBottom: 0 }}>
@@ -263,11 +300,48 @@ export default function Vende() {
                   <label>Precio sugerido (MXN)</label>
                   <input type="number" value={itemForm.selling_price} onChange={setItem('selling_price')} placeholder="El equipo revisará y ajustará si es necesario" min="0" />
                 </div>
+
+                {/* Photos */}
+                <div>
+                  <label style={{ fontWeight: 600, fontSize: 13, color: 'var(--navy)', display: 'block', marginBottom: 8 }}>
+                    Fotos del artículo <span style={{ fontWeight: 400, color: 'var(--muted)' }}>(máx. 6)</span>
+                  </label>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
+                    {photoPreviews.map((src, i) => (
+                      <div key={i} style={{ position: 'relative', paddingBottom: '100%', background: '#f5f5f5', borderRadius: 10, overflow: 'hidden', border: '1.5px solid var(--navy-border)' }}>
+                        <img src={src} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
+                        <button type="button" onClick={() => removePhoto(i)}
+                          style={{ position: 'absolute', top: 4, right: 4, background: 'rgba(0,0,0,.55)', border: 'none', borderRadius: 99, width: 22, height: 22, color: '#fff', fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1 }}>
+                          ✕
+                        </button>
+                      </div>
+                    ))}
+                    {photos.length < 6 && (
+                      <button type="button" onClick={() => fileInputRef.current?.click()}
+                        style={{ paddingBottom: '100%', position: 'relative', background: 'var(--navy-light)', border: '2px dashed var(--navy-border)', borderRadius: 10, cursor: 'pointer', display: 'block', width: '100%' }}>
+                        <span style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
+                          <span style={{ fontSize: 22 }}>📷</span>
+                          <span style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 600 }}>Agregar</span>
+                        </span>
+                      </button>
+                    )}
+                  </div>
+                  <input ref={fileInputRef} type="file" accept="image/*" multiple style={{ display: 'none' }} onChange={handlePhotoSelect} />
+                  <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 6 }}>
+                    JPG, PNG o HEIC · Máximo 6 fotos · Buena iluminación ayuda a vender más rápido
+                  </div>
+                </div>
+
                 {itemError && <div style={{ background: '#fff1f0', border: '1px solid #ffa39e', borderRadius: 8, padding: '8px 12px', fontSize: 13, color: '#d42b2b' }}>{itemError}</div>}
+                {uploading && (
+                  <div style={{ background: '#e6f4ff', border: '1px solid #91caff', borderRadius: 8, padding: '8px 12px', fontSize: 13, color: '#0958d9' }}>
+                    📤 Subiendo fotos... no cierres esta ventana
+                  </div>
+                )}
                 <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
                   <button type="button" onClick={() => setShowAddItem(false)} className="btn btn-outline" style={{ flex: 1 }}>Cancelar</button>
-                  <button type="submit" className="btn btn-primary" style={{ flex: 1 }} disabled={addItemMutation.isPending}>
-                    {addItemMutation.isPending ? 'Enviando...' : 'Enviar a revisión'}
+                  <button type="submit" className="btn btn-primary" style={{ flex: 1 }} disabled={addItemMutation.isPending || uploading}>
+                    {uploading ? 'Subiendo fotos...' : addItemMutation.isPending ? 'Enviando...' : 'Enviar a revisión'}
                   </button>
                 </div>
               </form>

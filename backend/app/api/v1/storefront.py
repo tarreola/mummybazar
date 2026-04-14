@@ -2,7 +2,7 @@
 Public storefront API — no admin auth required.
 Buyers and sellers authenticate with their own JWT (role: buyer | seller).
 """
-from fastapi import APIRouter, Depends, HTTPException, Request, Query
+from fastapi import APIRouter, Depends, HTTPException, Request, Query, UploadFile, File
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 from sqlalchemy import func
@@ -552,6 +552,44 @@ def submit_item(
     db.commit()
     db.refresh(item)
     return {"id": item.id, "sku": item.sku, "status": item.status.value}
+
+
+@router.post("/my-items/{item_id}/images", status_code=200)
+async def upload_my_item_image(
+    item_id: int,
+    file: UploadFile = File(...),
+    seller: Seller = Depends(_require_seller),
+    db: Session = Depends(get_db),
+):
+    import cloudinary
+    import cloudinary.uploader
+    from app.core.config import settings as cfg
+    cloudinary.config(
+        cloud_name=cfg.CLOUDINARY_CLOUD_NAME,
+        api_key=cfg.CLOUDINARY_API_KEY,
+        api_secret=cfg.CLOUDINARY_API_SECRET,
+    )
+    item = db.query(Item).filter(Item.id == item_id, Item.seller_id == seller.id).first()
+    if not item:
+        raise HTTPException(status_code=404, detail="Artículo no encontrado")
+    existing = [u for u in (item.images or "").split(",") if u.strip()]
+    if len(existing) >= 6:
+        raise HTTPException(status_code=400, detail="Máximo 6 fotos por artículo")
+    contents = await file.read()
+    idx = len(existing) + 1
+    result = cloudinary.uploader.upload(
+        contents,
+        folder=f"mommybazar/items/{item.sku}",
+        public_id=f"{item.sku}_{idx:02d}",
+        overwrite=True,
+        quality="auto:good",
+        fetch_format="auto",
+    )
+    url = result["secure_url"]
+    existing.append(url)
+    item.images = ",".join(existing)
+    db.commit()
+    return {"url": url, "images": existing}
 
 
 # ── Profile ───────────────────────────────────────────────────────────────────
