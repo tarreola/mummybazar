@@ -16,7 +16,7 @@ api.interceptors.response.use(
     if (err.response?.status === 401) {
       localStorage.removeItem('mb_sf_token')
       localStorage.removeItem('mb_sf_user')
-      window.location.href = '/login'
+      // Don't navigate — let the component handle the error and re-render naturally
     }
     return Promise.reject(err)
   }

@@ -16,7 +16,7 @@ from app.core.security import create_access_token, verify_token
 from app.core.config import settings
 from app.models.buyer import Buyer
 from app.models.seller import Seller
-from app.models.item import Item, ItemStatus, ItemCategory
+from app.models.item import Item, ItemStatus, ItemCategory, ItemCondition
 from app.models.order import Order, OrderStatus
 from app.services.mercadopago import mp_service
 from app.services.whatsapp import whatsapp_service
