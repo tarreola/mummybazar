@@ -117,7 +117,8 @@ export default function Vende() {
       setUploading(false)
       const detail = e.response?.data?.detail
       const status = e.response?.status
-      setItemError(detail || (status ? `Error ${status}` : 'Error de conexión — revisa tu internet e intenta de nuevo'))
+      const axiosMsg = e.message || ''
+      setItemError(detail || (status ? `Error ${status}` : `Error: ${axiosMsg || 'sin respuesta del servidor'}`))
     },
   })
 
