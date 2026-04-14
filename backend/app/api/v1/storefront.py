@@ -510,6 +510,7 @@ def submit_item(
     seller: Seller = Depends(_require_seller),
     db: Session = Depends(get_db),
 ):
+    import traceback
     if not seller.is_approved:
         raise HTTPException(status_code=403, detail="Tu cuenta aún no ha sido aprobada")
     # Validate enums
@@ -548,9 +549,14 @@ def submit_item(
         seller_id=seller.id,
         status=ItemStatus.RECEIVED,
     )
-    db.add(item)
-    db.commit()
-    db.refresh(item)
+    try:
+        db.add(item)
+        db.commit()
+        db.refresh(item)
+    except Exception as e:
+        db.rollback()
+        print(f"[submit_item] DB error: {traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=f"Error al guardar: {str(e)}")
     return {"id": item.id, "sku": item.sku, "status": item.status.value}
 
 

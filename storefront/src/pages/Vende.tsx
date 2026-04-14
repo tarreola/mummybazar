@@ -86,17 +86,21 @@ export default function Vende() {
 
   const addItemMutation = useMutation({
     mutationFn: async () => {
-      // 1. Create item
+      // 1. Create item (always required)
       const res = await submitItem({
         ...itemForm,
         selling_price: itemForm.selling_price ? Number(itemForm.selling_price) : undefined,
       })
       const itemId = res.data.id
-      // 2. Upload photos sequentially
+      // 2. Upload photos (best-effort — don't fail submission if photos fail)
       if (photos.length > 0) {
         setUploading(true)
         for (const file of photos) {
-          await uploadMyItemImage(itemId, file)
+          try {
+            await uploadMyItemImage(itemId, file)
+          } catch {
+            // Photo upload failed silently — item is already created
+          }
         }
         setUploading(false)
       }
@@ -109,7 +113,12 @@ export default function Vende() {
       setPhotoPreviews([])
       setItemError('')
     },
-    onError: (e: any) => { setUploading(false); setItemError(e.response?.data?.detail || 'Error al enviar el artículo') },
+    onError: (e: any) => {
+      setUploading(false)
+      const detail = e.response?.data?.detail
+      const status = e.response?.status
+      setItemError(detail || (status ? `Error ${status}` : 'Error de conexión — revisa tu internet e intenta de nuevo'))
+    },
   })
 
   const handlePhotoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
